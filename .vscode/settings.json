@@ -1,5 +1,24 @@
 {
     "files.associations": {
-        "system_error": "cpp"
+        "system_error": "cpp",
+        "cstdint": "cpp",
+        "sstream": "cpp",
+        "common.h": "c",
+        "stdint-uintn.h": "c",
+        "string_view": "c",
+        "stdint-intn.h": "c",
+        "array": "c",
+        "string": "c",
+        "stdio.h": "c",
+        "string.h": "c",
+        "stdlib.h": "c",
+        "ctype.h": "c",
+        "struct.h": "c",
+        "data_handle.h": "c",
+        "ratio": "c",
+        "functional": "c",
+        "tuple": "c",
+        "type_traits": "c",
+        "utility": "c"
     }
 }
