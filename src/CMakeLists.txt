@@ -1,5 +1,5 @@
 # 指定可执行文件的名称
-add_executable(app app.c app-init.c main.c)
+add_executable(app app-context.c app-init.c main.c)
 
 # 链接静态库
 target_link_libraries(app tk)

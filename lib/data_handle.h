@@ -23,10 +23,10 @@ void trim(char *str);
 bool is_all_digits(const char *str);
 
 element_para_t get_elements_para(char* str, char delimiter);
-int parse_array_to_string(const char* data, char** ele, int ele_max_size, char delimiter);
-int parse_key_value(const char* data, const char* key, data_t* const value, value_type_t value_type);
+char* pasrse_array(const char* data, char* ele, size_t ele_max_size, const char* delimiter);
+int parse_key_value(const char* data, const char* key, char* const value, size_t value_max_len);
 const char*  parse_cfg_label(const char* data, const char* attr_name, char* attr_context);
 
-void cfg_context_comment_remove(char* cfg_context);
+void comment_remove(char* cfg_context);
 
 #endif

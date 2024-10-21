@@ -4,18 +4,16 @@
 #include "app-init.h"
 #include "../lib/common.h"
 #include "../lib/data_handle.h"
-#include "struct.h"
-
-#define MAX_ROLE_NUM 10
-#define MAX_ROLE_DATA_SIZE 1024
-
-role_t G_role[MAX_ROLE_NUM];
-int G_role_num = 0;
-char G_role_path[MAX_PATH_LEN] = "";
+#include "app-context.h"
 
 int app_init(void)
 {
-    read_role();
+    if(TK_OK != load_role()){
+        TK_ABORT();
+    }
+
+    set_role();
+    
     return TK_OK;
 }
 
@@ -24,47 +22,38 @@ int app_final(void)
     return TK_OK;
 }
 
-int set_role_path(const char* path)
+int set_role(void)
 {
-    if(path == NULL || strlen(path) == 0){
-        log_error("role path is NULL");
-        return TK_ERROR;
-    }
-    log_info("role path:%s", path);
-    memcpy(G_role_path, path, strlen(path));
-    return TK_OK;
-}
+    role_t* role = NULL;
+    app_context_t* ctx = get_app_context();
+    int i = 0;
+    for(i = 0; i < ctx->role_num; i++){
+        role = &(ctx->role[i]);
 
-int read_role(void)
-{
-    const char* p = NULL;
-    char* role_str = file_to_string(G_role_path);
-    if(role_str == NULL) {
-        log_error("could not open file to read role file");
-        goto read_error;
-    }
-    cfg_context_comment_remove(role_str);
+        role->level = ctx->role_common_level;
+        role->hp_max = ctx->role_common_hp;
+        role->mp_max = ctx->role_common_mp;
+        role->hp = role->hp_max;
+        role->mp = role->mp_max;
+        role->status = alive;
+        role->allocate_attribute_points = 0;
 
-    //分割不同角色的数据
-    char role_context[MAX_ROLE_DATA_SIZE];
-    p = role_str;
-    while(1){
-        memset(role_context, 0, MAX_ROLE_DATA_SIZE);
-        p = parse_cfg_label(p, "@role", role_context);
-        if(p == NULL){
-            break;
-        }
+        role->curent_body_attribute.wu = role->init_body_attribute.wu + role->body_attribute_growth.wu*role->level;
+        role->curent_body_attribute.tong = role->init_body_attribute.tong + role->body_attribute_growth.tong*role->level;
+        role->curent_body_attribute.zhi = role->init_body_attribute.zhi + role->body_attribute_growth.zhi*role->level;
+        role->curent_body_attribute.min = role->init_body_attribute.min + role->body_attribute_growth.min*role->level;
+        role->curent_body_attribute.shi = role->init_body_attribute.shi + role->body_attribute_growth.shi*role->level;
+        role->curent_body_attribute.speed = role->init_body_attribute.speed + role->body_attribute_growth.speed*role->level;
 
-        log_text("role_context:\n%s\n", role_context);
-        G_role_num++;
+        role->self_tactics.active = false;
+        role->learned_tactics[0].active = false;
+        role->learned_tactics[1].active = false;
     }
 
-    tk_print("role_num:%d", G_role_num);
+    log_info("role info loaded:");
+    for(i = 0; i < ctx->role_num; i++){
+        show_role(&(ctx->role[i]));
+    }
 
     return TK_OK;
-
-read_error:
-    tk_free(role_str);
-    TK_ABORT();
-    return TK_ERROR;
 }

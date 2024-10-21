@@ -8,87 +8,91 @@
 
 void* tk_malloc(size_t size)
 {
-	return malloc(size);
+    return malloc(size);
 }
 
 void tk_free(void* ptr)
 {
-	free(ptr);
+    free(ptr);
 }
 
 element_para_t get_elements_para(char* str, char delimiter)
 {
-	int max_len = 0;
-	int count = 0;
-	element_para_t ele = {};
-	char* p = str;
+    int max_len = 0;
+    int count = 0;
+    element_para_t ele = {};
+    char* p = str;
     char* p1 = NULL;
-	char* p2 = NULL;
+    char* p2 = NULL;
 
-	p1 = p;
+    p1 = p;
     while(1){
         if(*p == delimiter || *p == '\0'){
-			count++;
+            count++;
             p2 = p;
-			if(max_len < (p2 - p1)){
-				max_len = p2 - p1;
-			}
-			p1 = p+1;
+            if(max_len < (p2 - p1)){
+                max_len = p2 - p1;
+            }
+            p1 = p+1;
         }
 
-		if(*p == '\0'){
-			break;
-		}
+        if(*p == '\0'){
+            break;
+        }
         p++;
     }
 
-	ele.max_length = max_len;
-	ele.number = count;
-	return ele;
+    ele.max_length = max_len;
+    ele.number = count;
+    return ele;
 }
 
-int parse_array_to_string(const char* data, char** ele, int ele_max_size, char delimiter)
+/*
+ * @param data 包含连续数组元素的数据字符串
+ * @param ele 用于存储提取的数组元素的缓冲区
+ * @param ele_max_size 缓冲区ele的最大大小，以字符为单位
+ * @param delimiter 用于分隔数组元素的分隔符字符串
+ * 
+ * @return 返回指向分隔符后的数据字符串部分的指针，如果到达数据末尾或发生错误，则返回NULL
+ */
+char* pasrse_array(const char* data, char* ele, size_t ele_max_size, const char* delimiter)
 {
-	const char* p = data;
-	const char* p1 = NULL;
-	const char* p2 = NULL;
-	int count = 0;
-	int max_len = 0;
+    char* p = NULL;
+    const char* pstart = NULL;
+    size_t data_len = 0;
+    size_t ele_len = 0;
 
-	if(data == NULL || ele == NULL){
-		log_error("Invalid input");
-		return TK_ERROR;
-	}
+    if(data == NULL || ele == NULL || delimiter == NULL){
+        log_error("Input NULL ptr");
+        return NULL;
+    }
 
-	p1 = p;
-	while(1){
-		if(*p == delimiter || *p == '\0'){
-			count++;
-			p2 = p;
-			if(max_len < (p2 - p1)){
-				max_len = p2- p1;
-			}
+    data_len = strlen(data);
+    if(data_len == 0 || strlen(delimiter) == 0 || ele_max_size == 0){
+        log_warn("Input empty params");
+        return NULL;
+    }
 
-			if(max_len >= (ele_max_size-1)){ //包括'\0'
-				log_error("The element of this array is too long");
-				return TK_ERROR;
-			}
+    pstart = data;
+    p = strstr(data, delimiter);
+    if(p == NULL){
+        ele_len = data_len;
+        memcpy(ele, data, ele_len);
+        ele[ele_len] = '\0';
+        trim(ele);
+        return NULL;
+    }
 
-			//以最大元素长度作为每个元素缓冲区的长度
-			memcpy(((char(*)[ele_max_size])ele)[count], p1, p2-p1);
-			((char(*)[ele_max_size])ele)[count][p2-p1] = '\0';
-			tk_print("{%s}", ((char(*)[ele_max_size])ele)[count]);
+    ele_len = p - pstart;
+    if(ele_len >= ele_max_size){
+        log_warn("element is too long, the element will be truncated!");
+        ele_len = ele_max_size - 1;
+    }
+    memcpy(ele, data, ele_len);
+    ele[ele_len] = '\0';
+    trim(ele);
 
-			p1 = p+1;
-		}
-
-		if(*p == '\0'){
-			break;
-		}
-        p++;
-	}
-
-	return count;
+    return p+strlen(delimiter);
 }
 
 /**
@@ -173,18 +177,18 @@ char* file_to_string(const char* file_name)
 
     FILE* file = fopen(file_name, "r");
     if(file == NULL){
-		log_error("Cannot open data file [%s]: %s", file_name, strerror(errno));
+        log_error("Cannot open data file [%s]: %s", file_name, strerror(errno));
         return NULL;
     }
 
     if(0 != fseek(file,0,SEEK_END)){
-		log_error("fseek file [%s]: %s", file_name, strerror(errno));
+        log_error("fseek file [%s]: %s", file_name, strerror(errno));
         goto READ_ERROR;
     }
 
     file_len = ftell(file);
     if(file_len < 0){
-		log_error("ftell file [%s]: %s", file_name, strerror(errno));
+        log_error("ftell file [%s]: %s", file_name, strerror(errno));
         goto READ_ERROR;
     }
 
@@ -196,7 +200,7 @@ char* file_to_string(const char* file_name)
     rewind(file);
     data_str = (char*)tk_malloc(file_len+1);
     if(data_str == NULL){
-		log_error("Failed to malloc for file [%s]: %s", file_name, strerror(errno));
+        log_error("Failed to malloc for file [%s]: %s", file_name, strerror(errno));
         goto READ_ERROR;
     }
     if(file_len != fread(data_str, 1, file_len, file)){
@@ -219,9 +223,9 @@ READ_ERROR:
 void trim(char *str)
 {
 
-	if(str == NULL){
-		return;
-	}
+    if(str == NULL){
+        return;
+    }
 
     int start = 0; // 字符串开始位置
     int end = strlen(str) - 1; // 字符串结束位置
@@ -247,15 +251,15 @@ void trim(char *str)
 
 void remove_quotation_marks(char* str)
 {
-	if(str == NULL){
-		return;
-	}
+    if(str == NULL){
+        return;
+    }
 
-	int len = strlen(str);
-	if(len >= 2 && str[0] == '"' && str[len-1] == '"'){
-		memmove(str, str+1, len-2);
-		str[len-2] = '\0';
-	}
+    int len = strlen(str);
+    if(len >= 2 && str[0] == '"' && str[len-1] == '"'){
+        memmove(str, str+1, len-2);
+        str[len-2] = '\0';
+    }
 }
 
 bool is_all_digits(const char *str)
@@ -284,230 +288,122 @@ bool is_all_digits(const char *str)
  * 
  * @return 返回TK_OK表示成功，否则返回TK_ERROR表示失败
  * 
- * 此函数旨在从给定的字符串数据中，解析出指定键对应的值，并根据指定的值类型进行转换和存储
- * 它首先检查输入参数的有效性，然后寻找键在数据字符串中的位置，如果找到，将键后的字符串作为值进行处理
- * 根据传入的值类型，将字符串转换为相应的数据类型，并存储在value参数指向的结构体中
+ * 此函数旨在从给定的字符串数据中，解析出指定键对应的值，任何类型的值都视为字符串
  */
-int parse_key_value(const char* data, const char* key, data_t* const value, value_type_t value_type)
+int parse_key_value(const char* data, const char* key, char* const value, size_t value_max_len)
 {
     char* pstr = NULL;
-	char* p_start = NULL;
-	char* p_end = NULL;
-	int value_len = 0;
-	char tmp[1024] = "";
+    char* p_start = NULL;
+    char* p_end = NULL;
+    size_t value_len = 0;
 
-	// 检查输入参数是否为NULL
-	if(data == NULL || key == NULL || value == NULL){
-		log_error("Invalid input");
-		return TK_ERROR;
-	}
+    // 检查输入参数是否为NULL
+    if(data == NULL || key == NULL || value == NULL){
+        log_error("Invalid input");
+        return TK_ERROR;
+    }
 
-	// 在数据字符串中寻找键的位置
-	if((pstr = strstr(data, key) )== NULL){
+    // 在数据字符串中寻找键的位置
+    if((pstr = strstr(data, key) )== NULL){
         log_error("No key [%s] found", key);
         return TK_ERROR;
     }
 
-	// 键找到后，确定值的开始位置和结束位置
-	p_start = pstr + strlen(key);
-	p_start = strchr(p_start, ':');
-	if(p_start == NULL){
-		log_error("No value found for key [%s]", key);
-		return TK_ERROR;
-	}
-	p_start++;
-	p_end = strchr(p_start, '\n');
-	if(p_end == NULL){
-		p_end = strchr(p_start, '\0');
-		if(p_end == NULL){
-			log_error("Invalid data format");
-			return TK_ERROR;
-		}
-	}
-	value_len = p_end - p_start;
+    // 键找到后，确定值的开始位置和结束位置
+    p_start = pstr + strlen(key);
+    p_start = strchr(p_start, ':');
+    if(p_start == NULL){
+        log_error("No value found for key [%s]", key);
+        return TK_ERROR;
+    }
+    p_start++;
+    p_end = strchr(p_start, '\n');
+    if(p_end == NULL){
+        p_end = strchr(p_start, '\0');
+        if(p_end == NULL){
+            log_error("Invalid data format");
+            return TK_ERROR;
+        }
+    }
 
-	// 检查值的长度是否超过最大限制
-	if(value_type == type_array){
-		if(value_len >= MAX_ELEMENTS_SIZE*MAX_ELEMENTS_NUM){
-			log_error("The value of [%s] is too long", key);
-			return TK_ERROR;
-		}
-	}else{
-		if(value_len >= MAX_ELEMENTS_SIZE){
-			log_error("The value of [%s] is too long", key);
-			return TK_ERROR;
-		}
-	}
+    //跳过首尾空白字符
+    while (isspace((unsigned char)(*p_start))) {
+        p_start++;
+    }
+    while (isspace((unsigned char)(*p_end))) {
+        p_end--;
+    }
+    value_len = p_end - p_start+1;
 
-	// 复制值到临时缓冲区，并去除空白字符
-	memcpy(tmp, p_start, value_len);
-	tmp[value_len]= '\0';
-	trim(tmp);
+    // 检查值的长度是否超过最大限制
+    if(value_len >= value_max_len){
+        log_warn("The value of [%s] is too long", key);
+        value_len = value_max_len - 1;
+    }
 
-	value->type_t = value_type;
-	value->elements_num = 1;
-	value->elements_size = 0;
+    // 复制值到输出参数，
+    memcpy(value, p_start, value_len);
+    value[value_len]= '\0';
 
-	// 根据指定的值类型，将字符串转换为相应的数据类型
-	switch(value_type){
-		case type_bool:
-			if(strcmp(tmp, "true") == 0){
-				value->boolean = true;
-			}else if(strcmp(tmp, "false") == 0){
-				value->boolean = false;
-			}else{
-				log_debug("tmp = %s", tmp);
-				log_error("Invalid bool value of key [%s]", key);
-				goto parse_error;
-			}
-			value->elements_num = 1;
-			value->elements_size = sizeof(bool);
-			break;
-		case type_char:
-			if(strlen(tmp)!=1){
-				log_error("Invalid char value of key [%s]", key);
-				goto parse_error;
-			}
-			value->elements_num = 1;
-			value->elements_size = sizeof(char);
-			value->ch = tmp[0];
-			break;
-		case type_float:
-			if(sscanf(tmp, "%f", &(value->flt)) != 1){
-				log_error("Invalid float value of key [%s]", key);
-				goto parse_error;
-			}
-			value->elements_num = 1;
-			value->elements_size = sizeof(float);
-			break;
-		case type_int:
-			if(is_all_digits(tmp) != true){
-				log_error("Invalid int value of key [%s]", key);
-				goto parse_error;
-			}
-			if(sscanf(tmp, "%d", &(value->intger)) != 1){
-				log_error("Invalid int value of key [%s]", key);
-				goto parse_error;
-			}
-			value->elements_num = 1;
-			value->elements_size = sizeof(int);
-			break;
-		case type_int64:
-			if(is_all_digits(tmp) != true){
-				log_error("Invalid int64 value of key [%s]", key);
-				goto parse_error;
-			}
-			if(sscanf(tmp, "%ld", &(value->intger64)) != 1){
-				log_error("Invalid int64 value of key [%s]", key);
-				goto parse_error;
-			}
-			value->elements_num = 1;
-			value->elements_size = sizeof(int64_t);
-			break;
-		case type_string:
-			remove_quotation_marks(tmp);
-			value->str = (char*)tk_malloc(value_len+1);
-			if(value->str == NULL){
-				log_error("Failed to tk_malloc: %s, key = %s", strerror(errno), key);
-				goto parse_error;
-			}
-			memcpy(value->str, tmp, value_len+1);
-			value->elements_num = 1;
-			value->elements_size = value_len+1;
-			break;
-		case type_array:
-			element_para_t ele;
-			ele = get_elements_para(tmp, ',');
-			if(ele.max_length >= MAX_ELEMENTS_NUM){
-				log_error("The number of elements with key value [%s] exceeds the limit %d", key, MAX_ELEMENTS_NUM);
-				goto parse_error;
-			}
-
-			value->array = (char**)calloc(ele.number, sizeof(char)*(ele.max_length+1));
-			if(value->array == NULL){
-				log_error("Failed to tk_malloc: %s, key = %s", strerror(errno), key);
-				goto parse_error;
-			}
-
-			value->elements_num = ele.number;
-			value->elements_size = ele.max_length+1;
-			if(TK_ERROR == parse_array_to_string(tmp, value->array, value->elements_size,',')){
-				log_error("Failed to parse array string, key = %s", key);
-				goto parse_error;
-			}
-			break;
-		default:
-			log_error("Invalid int value type of key [%s]", key);
-			goto parse_error;
-	}
-
-	return TK_OK;
-
-parse_error:
-	value->elements_num = 0;
-	value->elements_size = 0;
-	value->type_t = type_none;
-	if(value->array != NULL) tk_free(value->array);
-	if(value->str != NULL) tk_free(value->str);
-	return TK_ERROR;
+    return TK_OK;
 }
 
-void cfg_context_comment_remove(char* cfg_context)
+void comment_remove(char* cfg_context)
 {
-	if(cfg_context == NULL){
-		log_error("Invalid input");
-		return;
-	}
+    if(cfg_context == NULL){
+        log_error("Invalid input");
+        return;
+    }
 
-	char* p = NULL;
-	char* p_copy_start = NULL;
-	char* p_string_start = NULL;
-	char* p_string_end = NULL;
-	char* p_cfg_context = NULL;
-	size_t copy_len = 0;
-	char* result = (char*)tk_malloc(strlen(cfg_context)+1);
-	memset(result, 0, strlen(cfg_context)+1);
+    char* p = NULL;
+    char* p_copy_start = NULL;
+    char* p_string_start = NULL;
+    char* p_string_end = NULL;
+    char* p_cfg_context = NULL;
+    size_t copy_len = 0;
+    char* result = (char*)tk_malloc(strlen(cfg_context)+1);
+    memset(result, 0, strlen(cfg_context)+1);
  
-	p_string_start = cfg_context;
-	p_string_end = cfg_context + strlen(cfg_context);
-	p_copy_start = cfg_context;
-	p_cfg_context = result;
-	p = cfg_context;
-	while(1){
-		p = strchr(p_copy_start, '#');
-		if(p == NULL){
-			p = p_string_end;
-		}
+    p_string_start = cfg_context;
+    p_string_end = cfg_context + strlen(cfg_context);
+    p_copy_start = cfg_context;
+    p_cfg_context = result;
+    p = cfg_context;
+    while(1){
+        p = strchr(p_copy_start, '#');
+        if(p == NULL){
+            p = p_string_end;
+        }
 
-		copy_len = p - p_copy_start;
-		memcpy(p_cfg_context, p_copy_start, copy_len);
-		p_cfg_context += copy_len;
-		
-		p_copy_start = strchr(p, '\n');
-		
+        copy_len = p - p_copy_start;
+        memcpy(p_cfg_context, p_copy_start, copy_len);
+        p_cfg_context += copy_len;
+        
+        p_copy_start = strchr(p, '\n');
+        
 
-		if(p_copy_start == NULL || p_copy_start+1 >= p_string_end){
-			break;
-		}
+        if(p_copy_start == NULL || p_copy_start+1 >= p_string_end){
+            break;
+        }
 
-		if(p == p_string_end) {
-			break;
-		}
-		if(p > p_string_end) {
-			log_error("cfg_context_comment_remove error, %ld", p - p_string_end);
-			break;
-		}
-	
-		//整行都是注释，删除整行
-		if(p == p_string_start || *(p-1) == '\n'){
-			p_copy_start++;
-			continue;
-		}
-	}
+        if(p == p_string_end) {
+            break;
+        }
+        if(p > p_string_end) {
+            log_error("comment_remove error, %ld", p - p_string_end);
+            break;
+        }
+    
+        //整行都是注释，删除整行
+        if(p == p_string_start || *(p-1) == '\n'){
+            p_copy_start++;
+            continue;
+        }
+    }
 
-	memset(cfg_context, 0, strlen(cfg_context));
-	memcpy(cfg_context, result, strlen(result));
-	cfg_context[strlen(result)] = '\0';
-	tk_free(result);
+    memset(cfg_context, 0, strlen(cfg_context));
+    memcpy(cfg_context, result, strlen(result));
+    cfg_context[strlen(result)] = '\0';
+    tk_free(result);
 }
 

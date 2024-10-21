@@ -21,7 +21,7 @@
     }while(0)
     
 
-#define PTR2TYPE(p, type) (*((type*)(p)))
+#define PTR_CONVERT_TYPE(p, type) (*((type*)(p)))
 
 #define MAX_PATH_LEN 256
 
@@ -40,24 +40,8 @@ typedef enum{
     type_none
 }value_type_t;
 
-typedef value_type_t data_type_t;
-
-typedef struct{
-    union{
-        char* str; //字符串必须以 \0 结尾
-        bool boolean;
-        char ch;
-        int32_t intger;
-        int64_t intger64;
-        float flt;
-        char **array; //任何数组类型的元素都暂时视为字符串,必须以 \0 结尾
-    };
-    data_type_t type_t;
 #define MAX_ELEMENTS_SIZE 1024
 #define MAX_ELEMENTS_NUM 1024
-    uint32_t elements_size; //元素大小，sizeof(类型)得出，str和array都类型都应该为数组类型
-    uint32_t elements_num; //元素个数，除array外均为1，字符串数组类型为字符串个数
-}data_t;
 
 typedef struct{
     char* str;
