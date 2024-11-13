@@ -33,7 +33,7 @@ typedef struct{
 
 void tk_log(const char* func_name, int line_number, int level, const char* format, ...);
 void tk_log_text(const char* format, ...);
-void log_init(void);
+int log_init(void);
 void log_final(void);
 int set_log_file(const char* path);
 int set_log_level(log_levle_t level);

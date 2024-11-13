@@ -1,31 +1,79 @@
 #include <memory.h>
 #include <string.h>
+#include <time.h>
+#include <unistd.h>
 
 #include "app-init.h"
 #include "../lib/common.h"
 #include "../lib/data_handle.h"
 #include "app-context.h"
+#include "app-tui.h"
+
+//int tk_thread_init(void);
+//int tk_thread_final(void);
+//void task_thread(void* arg);
+
+int set_role(void);
 
 int app_init(void)
 {
-    if(TK_OK != load_role()){
-        TK_ABORT();
+    if(TK_OK != load_game_cfg()){
+        return TK_ERROR;
     }
 
+    srand(time(NULL));
     set_role();
+
+    //tk_thread_init();
+
+    if(TK_OK != app_tui_init()){
+        log_error("tui init failed");
+        app_tui_final();
+        return TK_ERROR;
+    }
     
     return TK_OK;
 }
 
 int app_final(void)
 {
+    app_tui_final();
+    //tk_thread_final();
+
     return TK_OK;
 }
 
+#if 0
+int tk_thread_init(void)
+{
+    tk_context_t* ctx = get_app_context();
+
+    for(int i = 0; i < MAX_THREAD_NUM; i++){
+        if(!pthread_create(&(ctx->tk_thread[i]), NULL, task_thread, NULL)){
+            log_error("create tk thread %d failed: %s", i, strerror(errno));
+            return TK_ERROR;
+        }
+    }
+
+    return TK_OK;
+}
+
+
+int tk_thread_final(void)
+{
+    tk_context_t* ctx = get_app_context();
+
+    for(int i = 0; i < MAX_THREAD_NUM; i++){
+        pthread_join(ctx->tk_thread[i], NULL);
+    }
+    return TK_OK;
+}
+#endif
+
 int set_role(void)
 {
-    role_t* role = NULL;
-    app_context_t* ctx = get_app_context();
+    tk_role_t* role = NULL;
+    tk_context_t* ctx = get_app_context();
     int i = 0;
     for(i = 0; i < ctx->role_num; i++){
         role = &(ctx->role[i]);
@@ -33,21 +81,7 @@ int set_role(void)
         role->level = ctx->role_common_level;
         role->hp_max = ctx->role_common_hp;
         role->mp_max = ctx->role_common_mp;
-        role->hp = role->hp_max;
-        role->mp = role->mp_max;
-        role->status = alive;
         role->allocate_attribute_points = 0;
-
-        role->curent_body_attribute.wu = role->init_body_attribute.wu + role->body_attribute_growth.wu*role->level;
-        role->curent_body_attribute.tong = role->init_body_attribute.tong + role->body_attribute_growth.tong*role->level;
-        role->curent_body_attribute.zhi = role->init_body_attribute.zhi + role->body_attribute_growth.zhi*role->level;
-        role->curent_body_attribute.min = role->init_body_attribute.min + role->body_attribute_growth.min*role->level;
-        role->curent_body_attribute.shi = role->init_body_attribute.shi + role->body_attribute_growth.shi*role->level;
-        role->curent_body_attribute.speed = role->init_body_attribute.speed + role->body_attribute_growth.speed*role->level;
-
-        role->self_tactics.active = false;
-        role->learned_tactics[0].active = false;
-        role->learned_tactics[1].active = false;
     }
 
     log_info("role info loaded:");

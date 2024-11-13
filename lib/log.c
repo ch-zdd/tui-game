@@ -50,7 +50,7 @@ void tk_log(const char *file, int line, int level, const char *format, ...)
         return;
     }
     
-    print_buf += snprintf(print_buf, level_str_len, "%s <%5s> | ", tk_time_stamp(), log_level_to_string(level));
+    print_buf += snprintf(print_buf, level_str_len, "%s <%-5s> | ", tk_time_stamp(), log_level_to_string(level));
 
     va_start(args, format);  
     // 首先，我们打印出日志的主要内容（采用vfprintf函数处理可变参数）  
@@ -59,9 +59,10 @@ void tk_log(const char *file, int line, int level, const char *format, ...)
 
     // 然后，在同一行末尾追加函数名和行号信息  
     // 注意：为了保持格式整洁，我们在函数名和行号前添加了分隔符，并进行了换行  
-    snprintf(print_buf, pos_info_len, " [%s:%d]\n", file, line);
+    snprintf(print_buf, pos_info_len, " (%s:%d)\n", file, line);
 
     fprintf(log_file, "%s", buffer);
+    fflush(log_file);
 }
 
 void tk_log_text(const char* format, ...)
@@ -81,9 +82,11 @@ void tk_log_text(const char* format, ...)
         // 首先，我们打印出日志的主要内容（采用vfprintf函数处理可变参数）  
     vfprintf(log_file, format, args);  
     va_end(args);
+
+    fflush(log_file);
 }
 
-void log_init(void)
+int log_init(void)
 {
 
     if(log_context.level == LOG_LEVEL_MAX){
@@ -95,6 +98,8 @@ void log_init(void)
             log_context.fp = stderr;
         }
     }
+
+    return TK_OK;
 }
 
 void log_final(void)

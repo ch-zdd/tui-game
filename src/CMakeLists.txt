@@ -1,8 +1,8 @@
 # 指定可执行文件的名称
-add_executable(app app-context.c app-init.c main.c)
+add_executable(app app.c app-context.c app-tui.c app-init.c main.c)
 
 # 链接静态库
-target_link_libraries(app tk)
+target_link_libraries(app tk ncursesw)
 
 # 包含库的头文件目录
 target_include_directories(app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../lib)

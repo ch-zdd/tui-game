@@ -2,32 +2,81 @@
 #include <stdlib.h>
 #include <string.h>
 #include <getopt.h>
+#include <signal.h>
 
 #include "../lib/common.h"
 #include "app-context.h"
 #include "app-init.h"
+#include "app.h"
 
-#define DEFAULT_CFG_PATH "cfg/config.cfg"
+#define DEFAULT_CFG_PATH "cfg/app.cfg"
 
-void init(void)
+int init(void)
 {
     char* cfg_path = get_app_context()->cfg_path;
 
     if(strlen(cfg_path) == 0){
         tk_print("No config file path");
-        TK_ABORT();
+        return TK_ERROR;
     }
-    load_cfg(cfg_path);
 
-    log_init();
+    if(TK_OK != load_app_cfg(cfg_path)){
+        return TK_ERROR;
+    }
+
+    if(TK_OK != log_init()){
+        return TK_ERROR;
+    }
+
     log_text("\tMY THREE KINGDOM!\n");
     log_info("cfg path:%s", get_app_context()->cfg_path);
-    app_init();
+
+    if(TK_OK != app_init()){
+        return TK_ERROR;
+    }
+
+    return TK_OK;
+}
+
+void tk_signal_handle(int signo)
+{
+    switch(signo){
+        case SIGINT:
+            log_info("Received signal SIGINT, exiting...");
+            exit(0);
+            break;
+        case SIGTERM:
+            log_info("Received signal SIGTERM, exiting...");
+            exit(0);
+            break;
+        case SIGWINCH:
+            log_info("Received signal SIGWINCH, exiting...");
+            exit(0);
+            //todo:界面重绘
+            break;
+        default:
+            log_info("Received signal %d, exiting...", signo);
+            return;
+    }
+}
+
+void tk_signal_init(void)
+{
+    signal(SIGINT, tk_signal_handle);
+    signal(SIGTERM, tk_signal_handle);
+    signal(SIGWINCH, tk_signal_handle);
+}
+
+void run(void)
+{
+    log_info("Starting...");
+    app_run();
 }
 
 void final(void)
 {
     app_final();
+    log_info("Bye!");
     log_final();
 }
 
@@ -58,7 +107,6 @@ int parse_params(int argc, char **argv)
                 print_help(argv[0]);
                 exit(0);
             case 'c':
-                tk_print("cfg path: %s", optarg);
                 set_cfg_path(optarg);
                 break;
             case '?':
@@ -71,10 +119,18 @@ int parse_params(int argc, char **argv)
 
 int main(int argc, char **argv)
 {
+    tk_signal_init();
+    atexit(final);
+
     set_cfg_path(DEFAULT_CFG_PATH);
     parse_params(argc, argv);
-    init();
 
-    final();
+    if(TK_OK != init()){
+        log_error("Init failed");
+        return -1;
+    }
+
+    run();
+
     return 0;
 }

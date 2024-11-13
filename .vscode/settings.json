@@ -20,6 +20,22 @@
         "tuple": "c",
         "type_traits": "c",
         "utility": "c",
-        "context.h": "c"
+        "context.h": "c",
+        "typeindex": "c",
+        "typeinfo": "c",
+        "chrono": "c",
+        "compare": "c",
+        "optional": "c",
+        "random": "c",
+        "initializer_list": "c",
+        "ncurses.h": "c",
+        "curses.h": "c",
+        "locale.h": "c",
+        "cstring": "c",
+        "deque": "c",
+        "forward_list": "c",
+        "unordered_map": "c",
+        "unordered_set": "c",
+        "vector": "c"
     }
 }

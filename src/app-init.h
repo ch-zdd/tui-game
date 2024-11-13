@@ -4,8 +4,7 @@
 
 int app_init(void);
 int app_final(void);
-int set_role_path(const char* path);
-int read_role(void);
-int set_role(void);
+
+int set_game_cfg_path(const char* path);
 
 #endif

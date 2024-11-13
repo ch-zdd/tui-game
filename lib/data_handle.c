@@ -6,6 +6,11 @@
 #include "common.h"
 #include "data_handle.h"
 
+void* tk_realloc(void* p, size_t size)
+{
+    return realloc(p, size);
+}
+
 void* tk_malloc(size_t size)
 {
     return malloc(size);
@@ -73,6 +78,7 @@ char* pasrse_array(const char* data, char* ele, size_t ele_max_size, const char*
         return NULL;
     }
 
+    memset(ele, 0, ele_max_size);
     pstart = data;
     p = strstr(data, delimiter);
     if(p == NULL){

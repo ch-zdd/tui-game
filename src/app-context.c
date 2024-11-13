@@ -3,14 +3,36 @@
 #include "app-context.h"
 #include "../lib/data_handle.h"
 
-static app_context_t app_context;
+#define SKILL_NUM SKILL_MAX
 
-int load_role_attr(role_t* role, const char* role_context);
-int load_role_common(const char* role_common_context);
+static tk_context_t context;
+#if 0
+static tk_innate_skill_t common_innate_skill[SKILL_NUM] = {
+    {"", 0, SKILL_NONE},
+    {"先手行动", 0, SKILL_ACTION_FIRST},
+    {"先手攻击", 0, SKILL_ATTACK_FIRST},
+    {"无反击攻击", 0, SKILL_NO_COUNTER},
+    {"主动连击率", 0, SKILL_ACTIVE_COMBO_RATIO,},
+    {"反击双击率", 0, SKILL_COUNTER_COMBO_RATIO,},
+    {"爆击率", 0, SKILL_CRIT_RATIO},
+    {"爆伤率", 0, SKILL_CRIT_DAMAGE},
+    {"每回合能力自动上升", 0, SKILL_ATTR_BUFF},
+    {"能力下降攻击攻击", 0, SKILL_ATTR_DEBUFF},
+    {"每回合恢复异常状态", 0, SKILL_RECOVERY_STATE},
+    {"每回合恢复蓝量", 0, SKILL_RECOVERY_MP},
+    {"每回合恢复血量", 0, SKILL_RECOVERY_HP},
+    {"随机属性攻击", 0, SKILL_RAND_ATTR_ATTACK},
+    {"", 0, SKILL_MAX}
+};
+#endif
 
-app_context_t* get_app_context(void)
+int load_role_attr(tk_role_t* role, const char* role_context);
+int load_role_common_attr(const char* role_common_context);
+int load_role_innate(tk_innate_skill_t* skill, const char* innate_skill_context);
+
+tk_context_t* get_app_context(void)
 {
-    return &app_context;
+    return &context;
 }
 
 void set_cfg_path(const char* path)
@@ -19,16 +41,15 @@ void set_cfg_path(const char* path)
         tk_print("No config file path to set");
         return;
     }
-    strncpy(app_context.cfg_path, path, MAX_PATH_LEN);
+    strncpy(context.cfg_path, path, MAX_PATH_LEN);
 }
 
-int load_cfg(const char* cfg_path)
+int load_app_cfg(const char* cfg_path)
 {
     char buffer[1024] = {};
     char* cfg_str = file_to_string(cfg_path);
     if(cfg_str == NULL) {
         log_error("Failed to read config file");
-        TK_ABORT();
         return TK_ERROR;
     }
 
@@ -47,17 +68,27 @@ int load_cfg(const char* cfg_path)
         }
     }
 
-    if(parse_key_value(cfg_str, "role_path", buffer, 1024) == TK_OK) {
-        set_role_path(buffer);
+    if(parse_key_value(cfg_str, "game_cfg_path", buffer, 1024) == TK_OK) {
+        set_game_cfg_path(buffer);
+    }
+
+    if(parse_key_value(cfg_str, "battle_window_width", buffer, 1024) == TK_OK) {
+        if(atoi(buffer)<=0){
+            log_error("Invalid battle window width");
+            return TK_ERROR;
+        }
+        context.battle_window_width = atoi(buffer);
+    }else{
+        context.battle_window_width = 48;
     }
 
     free(cfg_str);
     return TK_OK;
 }
 
-int set_role_path(const char* path)
+int set_game_cfg_path(const char* path)
 {
-    char* self_path = app_context.role_path;
+    char* self_path = context.game_cfg_path;
     if(path == NULL || strlen(path) == 0){
         log_error("role path is NULL");
         return TK_ERROR;
@@ -67,22 +98,22 @@ int set_role_path(const char* path)
     return TK_OK;
 }
 
-int load_role(void)
+int load_game_cfg(void)
 {
-    app_context_t* ctx = &app_context;
+    tk_context_t* ctx = &context;
     const char* p = NULL;
     int count = 0;
-    log_info("load role setting, path: %s", ctx->role_path);
-    char* roles_str = file_to_string(ctx->role_path);
-    if(roles_str == NULL) {
+    log_info("load game setting, path: %s", ctx->game_cfg_path);
+    char* game_cfg_str = file_to_string(ctx->game_cfg_path);
+    if(game_cfg_str == NULL) {
         log_error("could not open file to read role file");
         goto read_error;
     }
-    comment_remove(roles_str);
+    comment_remove(game_cfg_str);
 
     //分割不同角色的数据,并加载不同角色的数据
     char role_buffer[MAX_ROLE_DATA_SIZE];
-    p = roles_str;
+    p = game_cfg_str;
     while(1){
         if(ctx->role_num > MAX_ROLE_NUM){
             log_warn("role num is too much, ignore the subsequent roles");
@@ -106,35 +137,33 @@ int load_role(void)
     //加载角色的共同设定
     log_info("load role common setting");
     memset(role_buffer, 0, MAX_ROLE_DATA_SIZE);
-    if(NULL == parse_cfg_label(roles_str, "@role_common", role_buffer)){
+    if(NULL == parse_cfg_label(game_cfg_str, "@role_common", role_buffer)){
         log_error("No role common setting label found");
         goto read_error;
     }
 
-    if(TK_OK != load_role_common(role_buffer)){
+    if(TK_OK != load_role_common_attr(role_buffer)){
         log_error("load role common setting context failed");
         goto read_error;
     }
 
 
-    tk_free(roles_str);
+    tk_free(game_cfg_str);
     return TK_OK;
 
 read_error:
-    tk_free(roles_str);
-    TK_ABORT();
+    tk_free(game_cfg_str);
     return TK_ERROR;
 }
 
-int load_role_attr(role_t* role, const char* role_context)
+int load_role_attr(tk_role_t* role, const char* role_context)
 {
     int ret = TK_OK;
     char buffer[1024] = {};
-    char* arr_ptr = NULL;
-    char arr_ele[10] = {};
-    int* int_ptr = NULL;
-    int attr_len = 0;
-    int index = 0;
+    char* array_ptr = NULL;
+    char ele[10] = {};
+    int attr[10] = {};
+    int attr_index = 0;
 
     ret = parse_key_value(role_context, "name", role->name, sizeof(role->name));
     if(ret != TK_OK) return TK_ERROR;
@@ -150,63 +179,104 @@ int load_role_attr(role_t* role, const char* role_context)
     }
 
     //属性必须按顺序排列
+    memset(buffer, 0, sizeof(buffer));
     ret = parse_key_value(role_context, "attr", buffer, 1024);
     if(ret != TK_OK) return TK_ERROR;
 
-    arr_ptr = buffer;
-    int_ptr = &(role->init_body_attribute.wu);
-    attr_len = sizeof(role->init_body_attribute)/sizeof(int);
-    index = 0;
-    while( arr_ptr != NULL ) {
-        memset(arr_ele, 0, 10);
-        arr_ptr = pasrse_array(arr_ptr, arr_ele, 10, ",");
-        if(is_all_digits(arr_ele)){
-            int_ptr[index] = atoi(arr_ele);
-            index++;
-        }
-        if(index > attr_len){
-            log_error("attr array buffer is not enough");
+    array_ptr = buffer;
+    while(1){
+        array_ptr = pasrse_array(array_ptr, ele, 10, ",");
+        if(!is_all_digits(ele)){
             return TK_ERROR;
         }
+        attr[attr_index] = atoi(ele);
+        attr_index++;
+        if(array_ptr == NULL || attr_index >= 6){
+            break;
+        }
     }
-    if(index < attr_len){
-        log_error("Incomplete role attribute configuration");
-        return TK_ERROR;
-    }
-    //log_text("load role attr:");
-    //print_array_int(&(role->init_body_attribute.wu), attr_len, 4);
-
+    role->attr.force.base = attr[0];
+    role->attr.intelligence.base = attr[1];
+    role->attr.defense.base = attr[2];
+    role->attr.agile.base = attr[3];
+    role->attr.morale.base = attr[4];
+    role->attr.speed.base = attr[5];
+    memset(attr, 0, sizeof(attr));
 
     //属性成长也是同样的按顺序排列
+    memset(buffer, 0, sizeof(buffer));
     ret = parse_key_value(role_context, "growth", buffer, 1024);
     if(ret != TK_OK) return TK_ERROR;
 
-    arr_ptr = buffer;
-    int_ptr = &(role->body_attribute_growth.wu);
-    index = 0;
-    while( arr_ptr != NULL ) {
-        memset(arr_ele, 0, 10);
-        arr_ptr = pasrse_array(arr_ptr, arr_ele, 10, ",");
-        if(is_all_digits(arr_ele)){
-            int_ptr[index] = atoi(arr_ele);
-            index++;
-        }
-        if(index > attr_len){
-            log_error("attr array buffer is not enough");
+    array_ptr = buffer;
+
+    attr_index = 0;
+    while(1){
+        array_ptr = pasrse_array(array_ptr, ele, 10, ",");
+        if(!is_all_digits(ele)){
             return TK_ERROR;
         }
+        attr[attr_index] = atoi(ele);
+        attr_index++;
+        if(array_ptr == NULL || attr_index >= 6){
+            break;
+        }
     }
-    if(index < attr_len){
-        log_error("Incomplete role attribute configuration");
-        return TK_ERROR;
+    role->attr.force.growth = attr[0];
+    role->attr.intelligence.growth = attr[1];
+    role->attr.defense.growth = attr[2];
+    role->attr.agile.growth = attr[3];
+    role->attr.morale.growth = attr[4];
+    role->attr.speed.growth = attr[5];
+
+    //加载角色天赋
+    memset(buffer, 0, sizeof(buffer));
+    ret = parse_key_value(role_context, "innate", buffer, 1024);
+    if(ret != TK_OK) return TK_OK;
+
+    array_ptr = buffer;
+    attr_index = 0;
+    memset(&role->loaded_innate, 0, sizeof(role->loaded_innate));
+    tk_innate_skill_t skill_tmp;
+    int name_len = 0;
+    while(1){
+        array_ptr = pasrse_array(array_ptr, ele, 10, ",");
+
+        memset(&skill_tmp, 0, sizeof(skill_tmp));
+        if(load_role_innate(&skill_tmp, ele) != TK_OK){
+            log_warn("load innate skill failed");
+            break;
+        }
+
+        role->loaded_innate.innate_skill[skill_tmp.skill_num].skill_num = skill_tmp.skill_num;
+        role->loaded_innate.innate_skill[skill_tmp.skill_num].skill_value |= skill_tmp.skill_value;
+        role->loaded_innate.innate_mask |= 0x01 << skill_tmp.skill_num;
+
+        name_len = strlen(role->loaded_innate.innate_skill[skill_tmp.skill_num].name);
+        memcpy(&(role->loaded_innate.innate_skill[skill_tmp.skill_num].name[name_len]), skill_tmp.name, strlen(skill_tmp.name));
+        log_debug("load innate skill num %d, value %d, name %s", skill_tmp.skill_num, skill_tmp.skill_value, skill_tmp.name);
+        attr_index++;
+
+        if(array_ptr == NULL || attr_index >= MAX_INNATE_SKILL_NUM){
+            break;
+        }
+        
     }
-    //log_text("load role attr growth:");
-    //print_array_int(&(role->body_attribute_growth.wu), attr_len, 4);    
+
+    role->nof_innate_skill = attr_index;
+
+    for(int i = 0; i<SKILL_MAX; i++){
+        
+        if(!(role->loaded_innate.innate_mask >> i & 0x01)){
+            continue;
+        }
+        log_debug("name = %s, num = %d, value = %d, mask = %d pass", role->name, i, role->loaded_innate.innate_skill[i].skill_value, role->loaded_innate.innate_mask);
+    }
 
     return TK_OK;
 }
 
-int load_role_common(const char* role_common_context)
+int load_role_common_attr(const char* role_common_context)
 {
     int ret = TK_OK;
     char buffer[10] = {};
@@ -217,7 +287,7 @@ int load_role_common(const char* role_common_context)
         log_error("role common level is not digit");
         return TK_ERROR;
     }
-    app_context.role_common_level = atoi(buffer);
+    context.role_common_level = atoi(buffer);
 
     memset(buffer, 0, sizeof(buffer));
     ret = parse_key_value(role_common_context, "hp", buffer, sizeof(buffer));
@@ -226,7 +296,7 @@ int load_role_common(const char* role_common_context)
         log_error("role common hp is not digit");
         return TK_ERROR;
     }
-    app_context.role_common_hp = atoi(buffer);
+    context.role_common_hp = atoi(buffer);
 
     memset(buffer, 0, sizeof(buffer));
     ret = parse_key_value(role_common_context, "mp", buffer, sizeof(buffer));
@@ -235,36 +305,69 @@ int load_role_common(const char* role_common_context)
         log_error("role common mp is not digit");
         return TK_ERROR;
     }
-    app_context.role_common_mp = atoi(buffer);
+    context.role_common_mp = atoi(buffer);
 
     return TK_OK;
 }
 
-void show_role(role_t* role)
+int load_role_innate(tk_innate_skill_t* skill, const char* innate_skill_context)
 {
-    body_attribute_t* attr = NULL;
-    body_attribute_growth_t* attr_growth = NULL;
+    int skill_num = 0;
+    int skill_value = 0;
+    int ret = TK_OK;
+    const char* name = NULL;
+
+    if(skill == NULL || innate_skill_context == NULL){
+        return TK_ERROR;
+    }
+
+    
+    ret = sscanf(innate_skill_context, "%d/%d", &skill_num, &skill_value);
+    if(ret != 2){
+        log_error("innate skill format error");
+        return TK_ERROR;
+    }
+
+    if(skill_num>=SKILL_MAX || skill_num <0 || skill_value<0 || skill_value>100){
+        log_error("innate skill parameter error");
+        return TK_ERROR;
+    }
+
+    if(MASK_TYPE_SKILL(skill_num)){
+        skill_value = skill_value == 0 ? ATTR_TYPE_ALL: (1<<(skill_value-1));
+    }
+
+    skill->skill_num = skill_num;
+    skill->skill_value = skill_value;
+
+    name = role_innate_to_string(skill->skill_num, skill->skill_value);
+    if(name == NULL){
+        log_error("Failed to get name of role innate skill");
+        return TK_ERROR;
+    }
+
+    memcpy(skill->name, name, strlen(name));
+
+    return TK_OK;
+}
+
+void show_role(tk_role_t* role)
+{
     log_text("name: %s", role->name);
-    log_text("    hp: %d/%d", role->hp, role->hp_max);
-    log_text("    mp: %d/%d", role->mp, role->mp_max);
+    log_text("    hp_max: %d", role->hp_max);
+    log_text("    mp_max: %d", role->mp_max);
     log_text("    gender: %s", role->gender == Female ? "female":"male");
     log_text("    level: %d", role->level);
-
-    attr = &(role->init_body_attribute);
-    log_text("    base    attribute: wu = %d tong = %d zhi = %d min = %d shi = %d speed = %d", 
-                        attr->wu, attr->tong, attr->zhi, attr->min, attr->shi, attr->speed);
-    attr_growth = &(role->body_attribute_growth);
-    log_text("    growth  attribute: wu = %c tong = %c zhi = %c min = %c shi = %c speed = %c", 
-                        growth_to_char(attr_growth->wu), growth_to_char(attr_growth->tong), growth_to_char(attr_growth->zhi), 
-                        growth_to_char(attr_growth->min), growth_to_char(attr_growth->shi), growth_to_char(attr_growth->speed));
-    attr = &(role->curent_body_attribute);
-    log_text("    current attribute: wu = %d tong = %d zhi = %d min = %d shi = %d speed = %d", 
-                        attr->wu, attr->tong, attr->zhi, attr->min, attr->shi, attr->speed);
+    log_text("    attribute(base/growth):");
+    log_text("        force (%d/%c) defense (%d/%c) intelligence = (%d/%c) agile (%d/%c) morale (%d/%c) speed (%d/%c)", 
+                        role->attr.force.base, growth_to_char(role->attr.force.growth),
+                        role->attr.intelligence.base, growth_to_char(role->attr.intelligence.growth),
+                        role->attr.defense.base, growth_to_char(role->attr.defense.growth),
+                        role->attr.agile.base, growth_to_char(role->attr.agile.growth),
+                        role->attr.morale.base, growth_to_char(role->attr.morale.growth),
+                        role->attr.speed.base, growth_to_char(role->attr.speed.growth));
     
     log_text("    allocate_attribute_points: %d", role->allocate_attribute_points);
-    //log_text("status: %d\n", role->status);
-    //log_text("self_tactics: %s\n", role->self_tactics.description);
-    //log_text("learned_tactics: %s %s\n", role->learned_tactics[0].description, role->learned_tactics[1].description);
 }
 
 char growth_to_char(int growth)
@@ -279,4 +382,84 @@ char growth_to_char(int growth)
         case 7: return 'Z';
         default: return '?';
     }
+}
+
+const char* role_state_to_string(tk_battler_state_t state)
+{
+    switch(state){
+        case BATTLER_STATE_NORMAL: return "NORMAL";
+        case BATTLER_STATE_ATTACK_DOWN: return "ATTACK_DOWN";
+        case BATTLER_STATE_CONFUSION: return "CONFUSION";
+        case BATTLER_STATE_DEAD: return "DEAD";
+        case BATTLER_STATE_ALL_DOWN: return "ALL_DOWN";
+        default: return "UNKNOWN";
+    }
+}
+
+const char* attr_buff_to_string(tk_innate_skill_num_t num, int value)
+{
+    if(num == SKILL_ATTR_BUFF){
+        switch(value){
+            case ATTR_TYPE_ALL: return "霸气";
+            case ATTR_TYPE_FORCE: return "升攻";
+            case ATTR_TYPE_INTELLIGENCE: return "升智";
+            case ATTR_TYPE_DEFENSE: return "升防";
+            case ATTR_TYPE_AGILITY: return "升爆";
+            case ATTR_TYPE_MORALE: return "升士";
+            case ATTR_TYPE_SPEED: return "升速";
+            default: return "未定义特效值";
+        }
+    }else if(num == SKILL_ATTR_DEBUFF){
+        switch(value){
+            case ATTR_TYPE_ALL: return "衰气";
+            case ATTR_TYPE_FORCE: return "破攻";
+            case ATTR_TYPE_INTELLIGENCE: return "破智";
+            case ATTR_TYPE_DEFENSE: return "破防";
+            case ATTR_TYPE_AGILITY: return "破爆";
+            case ATTR_TYPE_MORALE: return "破士";
+            case ATTR_TYPE_SPEED: return "破速";
+            default: return "未定义特效值";
+        }
+    }else{
+        return NULL;
+    }
+}
+
+const char* role_innate_to_string(tk_innate_skill_num_t innate_num, int skill_value)
+{
+   static char buffer[128] = {};
+
+    switch(innate_num){
+        case SKILL_NONE: return "无";
+        case SKILL_ACTION_FIRST: return "先手行动";
+        case SKILL_ATTACK_FIRST: return "攻击先手";
+        case SKILL_NO_COUNTER: return "无反击攻击";
+        case SKILL_ACTIVE_COMBO_RATIO: sprintf(buffer, "主动连击率+%d%%", skill_value); return buffer;
+        case SKILL_COUNTER_COMBO_RATIO: sprintf(buffer, "反击连击率+%d%%", skill_value); return buffer;
+        case SKILL_CRIT_RATIO: sprintf(buffer, "暴击+%d%%", skill_value); return buffer;
+        case SKILL_CRIT_DAMAGE: sprintf(buffer, "暴伤+%d%%", skill_value); return buffer;
+        case SKILL_ATTR_BUFF: 
+        case SKILL_ATTR_DEBUFF: return attr_buff_to_string(innate_num, skill_value);
+        case SKILL_RECOVERY_STATE: if(skill_value == 0) return "属性和状态恢复"; else if(skill_value==1) return "状态异常恢复"; else return "属性下降恢复";
+        case SKILL_RECOVERY_MP: sprintf(buffer, "每回合恢复mp %d", skill_value); return buffer;
+        case SKILL_RECOVERY_HP: sprintf(buffer, "每回合恢复hp %d", skill_value); return buffer;
+        case SKILL_RAND_STATUS_ATTACK: return "随机状态攻击";
+        case SKILL_RAND_ATTR_ATTACK: return "随机属性攻击";
+        default: return "未定义";
+    }
+
+   return NULL;
+}
+
+tk_role_t* search_role_by_name(const char* name)
+{
+    int i = 0;
+
+    for(i = 0; i < context.role_num; i++){
+        if(strcmp(context.role[i].name, name) == 0){
+            return &(context.role[i]);
+        }
+    }
+
+    return NULL;
 }
