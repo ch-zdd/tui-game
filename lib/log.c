@@ -7,12 +7,13 @@
 #include "common.h"
 #include "log.h"
 
-#define DEFAULT_LOG_PATH "/var/log/tk.log"
+#define DEFAULT_LOG_PATH "/tmp/tk.log"
 #define MAX_LOG_SIZE 1024
 
 static log_context_t log_context = {
+    .default_fp = NULL,
     .fp = NULL,
-    .level = LOG_LEVEL_MAX
+    .level = LOG_LEVEL_INFO
 };
 
 /*
@@ -31,6 +32,30 @@ char* tk_time_stamp(void)
     return date_time;
 }
 
+// 获取高精度时间戳的函数
+char* tk_high_precision_time_stamp(void)
+{
+    static char date_time[100];
+    struct timespec ts;
+    struct tm *info;
+
+    // 获取当前时间戳
+    if (clock_gettime(CLOCK_REALTIME, &ts) == -1) {
+        perror("clock_gettime");
+        return NULL;
+    }
+
+    // 将时间戳转换为本地时间
+    info = localtime(&ts.tv_sec);
+
+    // 格式化时间为字符串，包括纳秒部分
+    snprintf(date_time, sizeof(date_time), "%04d-%02d-%02d %02d:%02d:%02d.%09ld",
+             info->tm_year + 1900, info->tm_mon + 1, info->tm_mday,
+             info->tm_hour, info->tm_min, info->tm_sec, ts.tv_nsec);
+
+    return date_time;
+}
+
 // 定义一个辅助函数，用于实现带函数名和行号的日志记录  
 void tk_log(const char *file, int line, int level, const char *format, ...) 
 {
@@ -39,12 +64,7 @@ void tk_log(const char *file, int line, int level, const char *format, ...)
     int level_str_len = 30;
     int pos_info_len = 256;
     int info_len = MAX_LOG_SIZE-pos_info_len-level_str_len;
-    FILE* log_file = log_context.fp;
     va_list args;
-
-    if(log_file == NULL){
-        log_file = stderr;
-    }
 
     if(level > log_context.level){
         return;
@@ -61,17 +81,27 @@ void tk_log(const char *file, int line, int level, const char *format, ...)
     // 注意：为了保持格式整洁，我们在函数名和行号前添加了分隔符，并进行了换行  
     snprintf(print_buf, pos_info_len, " (%s:%d)\n", file, line);
 
-    fprintf(log_file, "%s", buffer);
-    fflush(log_file);
+    fprintf(log_context.default_fp, "%s", buffer);
+    //保存到用户自定义日志文件
+    if(log_context.fp != NULL){
+        fprintf(log_context.fp, "%s", buffer);
+    }
+    //因为没有性能要求，所以 这里直接实时刷新日志
+    fflush(log_context.default_fp);
+    fflush(log_context.fp);
 }
 
 void tk_log_text(const char* format, ...)
 {
     FILE* log_file = log_context.fp;
+    char buffer[MAX_LOG_SIZE];
+    char* print_buf = buffer;
+    int info_len = MAX_LOG_SIZE;
     va_list args;
 
     if(log_file == NULL){
         log_file = stderr;
+        return;
     }
 
     if(log_context.level < LOG_LEVEL_INFO){
@@ -79,13 +109,21 @@ void tk_log_text(const char* format, ...)
     }
     
     va_start(args, format);  
-        // 首先，我们打印出日志的主要内容（采用vfprintf函数处理可变参数）  
-    vfprintf(log_file, format, args);  
+    // 首先，我们打印出日志的主要内容（采用vfprintf函数处理可变参数）  
+    print_buf += vsnprintf(print_buf, info_len, format, args);  
     va_end(args);
 
-    fflush(log_file);
+    fprintf(log_context.default_fp, "%s\n", print_buf);
+    //保存到用户自定义日志文件
+    if(log_context.fp != NULL){
+        fprintf(log_context.fp, "%s\n", print_buf);
+    }
+    //因为没有性能要求，所以 这里直接实时刷新日志
+    fflush(log_context.default_fp);
+    fflush(log_context.fp);
 }
 
+// 初始化日志模块,日志必定打印在默认路径，但可以重定向到其他文件
 int log_init(void)
 {
 
@@ -93,11 +131,12 @@ int log_init(void)
         log_context.level = LOG_LEVEL_INFO;
     }
 
-    if(log_context.fp == NULL){
-        if(TK_OK != set_log_file(DEFAULT_LOG_PATH)){
-            log_context.fp = stderr;
-        }
+    FILE* default_log_file = fopen(DEFAULT_LOG_PATH, "w");
+    if(default_log_file == NULL){
+        tk_print("Open default log file [%s] failed !, %s", DEFAULT_LOG_PATH, strerror(errno));
+        return TK_ERROR;
     }
+    log_context.default_fp = default_log_file;
 
     return TK_OK;
 }
@@ -108,8 +147,8 @@ void log_final(void)
         return;
     }
 
-    fflush(log_context.fp);
     fclose(log_context.fp);
+    fclose(log_context.default_fp);
 }
 
 int set_log_file(const char* path)

@@ -284,6 +284,28 @@ bool is_all_digits(const char *str)
     return true;
 }
 
+bool is_float_num(const char *str)
+{
+    if (str == NULL) {
+        return false;
+    }
+
+    while (*str) {
+        if (*str != '.' ) {
+            if(*str < '0' || *str > '9')
+                return false;
+        }else{
+            if(*(str+1) == '\0'){
+                return false;
+            }
+        }
+
+        str++;
+    }
+
+    return true;
+}
+
 /**
  * 解析键值对字符串
  * 

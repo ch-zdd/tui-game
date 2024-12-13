@@ -71,8 +71,8 @@ typedef struct{
 
 typedef struct{
     struct{
-        int base;
-        int growth;
+        float base;
+        float growth;
     }force,intelligence,defense,agile,morale,speed;//必须按照 武智防敏士速 排列
 } tk_role_attr_t;
 
@@ -167,7 +167,7 @@ typedef struct{
 
 tk_context_t* get_app_context(void);
 
-void set_cfg_path(const char* path);
+int set_cfg_path(const char* path);
 int load_app_cfg(const char* cfg_path);
 int set_game_cfg_path(const char* path);
 

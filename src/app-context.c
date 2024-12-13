@@ -35,13 +35,16 @@ tk_context_t* get_app_context(void)
     return &context;
 }
 
-void set_cfg_path(const char* path)
+int set_cfg_path(const char* path)
 {
     if(path == NULL || strlen(path) == 0){
         tk_print("No config file path to set");
-        return;
+        return TK_ERROR;
     }
+
     strncpy(context.cfg_path, path, MAX_PATH_LEN);
+
+    return TK_OK;
 }
 
 int load_app_cfg(const char* cfg_path)
@@ -62,7 +65,8 @@ int load_app_cfg(const char* cfg_path)
     if(parse_key_value(cfg_str, "log_level", buffer, 1024) == TK_OK) {
         log_levle_t level = log_string_to_level(buffer);
         if(level > LOG_LEVEL_ALL){
-            log_error("Illegal log level");
+            log_error("Illegal log level, use default INFO level");
+            set_log_level(LOG_LEVEL_INFO);
         }else{
             set_log_level(level);
         }
@@ -162,14 +166,20 @@ int load_role_attr(tk_role_t* role, const char* role_context)
     char buffer[1024] = {};
     char* array_ptr = NULL;
     char ele[10] = {};
-    int attr[10] = {};
+    float attr[10] = {};
     int attr_index = 0;
 
     ret = parse_key_value(role_context, "name", role->name, sizeof(role->name));
-    if(ret != TK_OK) return TK_ERROR;
-    
+    if(ret != TK_OK) {
+        log_error("parse role name failed");
+        return TK_ERROR;
+    }
+
     ret = parse_key_value(role_context, "gender", buffer, 10);
-    if(ret != TK_OK) return TK_ERROR;
+    if(ret != TK_OK){
+        log_error("gender parse failed");
+        return TK_ERROR;
+    }
     if(strcmp(buffer, "female") == 0){
         role->gender = Female;
     }else if(strcmp(buffer, "male") == 0){
@@ -181,15 +191,19 @@ int load_role_attr(tk_role_t* role, const char* role_context)
     //属性必须按顺序排列
     memset(buffer, 0, sizeof(buffer));
     ret = parse_key_value(role_context, "attr", buffer, 1024);
-    if(ret != TK_OK) return TK_ERROR;
+    if(ret != TK_OK) {
+        log_error("parse_key_value failed, key is attr");
+        return TK_ERROR;
+    }
 
     array_ptr = buffer;
     while(1){
         array_ptr = pasrse_array(array_ptr, ele, 10, ",");
-        if(!is_all_digits(ele)){
+        if(!is_float_num(ele)){
+            log_error("attr value is not float number");
             return TK_ERROR;
         }
-        attr[attr_index] = atoi(ele);
+        attr[attr_index] = atof(ele);
         attr_index++;
         if(array_ptr == NULL || attr_index >= 6){
             break;
@@ -206,17 +220,21 @@ int load_role_attr(tk_role_t* role, const char* role_context)
     //属性成长也是同样的按顺序排列
     memset(buffer, 0, sizeof(buffer));
     ret = parse_key_value(role_context, "growth", buffer, 1024);
-    if(ret != TK_OK) return TK_ERROR;
+    if(ret != TK_OK){
+        log_error("parse_key_value failed, key is growth");
+        return TK_ERROR;
+    }
 
     array_ptr = buffer;
 
     attr_index = 0;
     while(1){
         array_ptr = pasrse_array(array_ptr, ele, 10, ",");
-        if(!is_all_digits(ele)){
+        if(!is_float_num(ele)){
+            log_error("attr value is not float number");
             return TK_ERROR;
         }
-        attr[attr_index] = atoi(ele);
+        attr[attr_index] = atof(ele);
         attr_index++;
         if(array_ptr == NULL || attr_index >= 6){
             break;
@@ -232,7 +250,10 @@ int load_role_attr(tk_role_t* role, const char* role_context)
     //加载角色天赋
     memset(buffer, 0, sizeof(buffer));
     ret = parse_key_value(role_context, "innate", buffer, 1024);
-    if(ret != TK_OK) return TK_OK;
+    if(ret != TK_OK){
+        log_warn("load innate failed, ignore innate info");
+        return TK_OK;
+    }
 
     array_ptr = buffer;
     attr_index = 0;
@@ -359,7 +380,7 @@ void show_role(tk_role_t* role)
     log_text("    gender: %s", role->gender == Female ? "female":"male");
     log_text("    level: %d", role->level);
     log_text("    attribute(base/growth):");
-    log_text("        force (%d/%c) defense (%d/%c) intelligence = (%d/%c) agile (%d/%c) morale (%d/%c) speed (%d/%c)", 
+    log_text("        force (%0.2f/%0.2f) defense (%0.2f/%0.2f) intelligence = (%0.2f/%0.2f) agile (%0.2f/%0.2f) morale (%0.2f/%0.2f) speed (%0.2f/%0.2f)", 
                         role->attr.force.base, growth_to_char(role->attr.force.growth),
                         role->attr.intelligence.base, growth_to_char(role->attr.intelligence.growth),
                         role->attr.defense.base, growth_to_char(role->attr.defense.growth),

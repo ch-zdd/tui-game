@@ -29,6 +29,7 @@ typedef enum{
 typedef struct{
     int level;
     FILE* fp;
+    FILE* default_fp; //必须存在
 }log_context_t;
 
 void tk_log(const char* func_name, int line_number, int level, const char* format, ...);

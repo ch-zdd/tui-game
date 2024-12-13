@@ -351,7 +351,8 @@ tk_position_state_t get_battler_position_state(battle_type_t battler_type, int p
 
 int select_enemy_tui(int self_idx)
 {
-
+    bool loop_flag_1 = true;
+    bool loop_flag_2 = true;
     int battlers_num = get_battlers_num();
     battler_t* battlers = get_battlers();
 
@@ -367,95 +368,95 @@ int select_enemy_tui(int self_idx)
     int maxcol = get_app_context()->tui.main.scr_col;
 
     battle_type_t current_battler_type = BATTLE_TYPE_SELF;
+    clrzone(KEY_INFO_LINE_NUM, maxcol, maxline-KEY_INFO_LINE_NUM, 0);
     mvprintw(maxline-KEY_INFO_LINE_NUM, 0, "Current state: select defender");
     mvprintw(maxline-KEY_INFO_LINE_NUM+1, 0, "KEY: ballter:1;2;3 , q:quit, j:attack, c:info, w:scroll up, s:scroll down");
     refresh();
     battler_highlight(BATTLE_TYPE_ENEMY, defender_position, A_NORMAL, 2); //默认选择的敌人
-    while(1){
-        if(key == 'j'){
-            //确认选择
-            break;
-        }
-
-        if(key == 'w' || key == 's'){
-            roll_battle_report(key);
-        }
-
-        if(key == '1' || key == '2' || key == '3'){
-            if(get_battler_position_state(BATTLE_TYPE_ENEMY, key-'0') != POSITION_STATE_ALIVE){
-                continue;
+    while(loop_flag_1){
+        switch(key){
+            case 'j':loop_flag_1 = false; continue; //退出当前页面
+            case 'w':
+            case 's':{
+                roll_battle_report(key);
+                break;
             }
-            battler_highlight(BATTLE_TYPE_ENEMY, defender_position, A_NORMAL, 0);
-            defender_position = key-'0';
-            battler_highlight(BATTLE_TYPE_ENEMY, defender_position, A_NORMAL, 2);
-        }
-
-        if(key == 'q'){
-            //退出游戏
-            return -1;
-        }
-
-        if(key == 'c'){
-            mvprintw(maxline-KEY_INFO_LINE_NUM, 0, "Current state: show %s info", current_battler_type == BATTLE_TYPE_SELF?"self":"enemy");
-            mvprintw(maxline-KEY_INFO_LINE_NUM+1, 0, "KEY: ballter:1;2;3 , q:quit, l:return, c:self/enemy, k:attr/innate");
-            refresh();
-            key = ' ';
-            //下级页面
-            while(1){
-                if(key == 'l'){
-                    //返回上一级
-                    break;
+            case '1':
+            case '2':
+            case '3':{
+                if(get_battler_position_state(BATTLE_TYPE_ENEMY, key-'0') == POSITION_STATE_ALIVE){
+                    battler_highlight(BATTLE_TYPE_ENEMY, defender_position, A_NORMAL, 0);
+                    defender_position = key-'0';
+                    battler_highlight(BATTLE_TYPE_ENEMY, defender_position, A_NORMAL, 2);
                 }
-
-                if(key == 'q'){
-                    //退出游戏
-                    return -1;
-                }
-
-                //切换角色类型显示
-                if(key == 'c'){
-                    if(current_battler_type == BATTLE_TYPE_ENEMY){
-                        current_battler_type = BATTLE_TYPE_SELF;
-                    }else if(current_battler_type == BATTLE_TYPE_SELF){
-                        current_battler_type = BATTLE_TYPE_ENEMY;
+                break;
+            }
+            case 'q': exit(EXIT_SUCCESS); //退出游戏
+            case 'c':{
+                clrzone(KEY_INFO_LINE_NUM, maxcol, maxline-KEY_INFO_LINE_NUM, 0);
+                mvprintw(maxline-KEY_INFO_LINE_NUM, 0, "Current state: show %s info", current_battler_type == BATTLE_TYPE_SELF?"self":"enemy");
+                mvprintw(maxline-KEY_INFO_LINE_NUM+1, 0, "KEY: ballter:1;2;3 , q:quit, l:return, c:self/enemy, k:attr/innate");
+                refresh();
+                key = ' ';
+                //下级页面
+                while(loop_flag_2){
+                    switch(key){
+                        case 'l': loop_flag_2 = false; continue;
+                        case 'q': exit(EXIT_SUCCESS); //退出游戏
+                        case 'c': {
+                            //切换角色类型显示
+                            if(current_battler_type == BATTLE_TYPE_ENEMY){
+                                current_battler_type = BATTLE_TYPE_SELF;
+                            }else if(current_battler_type == BATTLE_TYPE_SELF){
+                                current_battler_type = BATTLE_TYPE_ENEMY;
+                            }
+                            battler_info_idx = generate_position(current_battler_type);
+                            break;
+                        }
+                        case 'k':{
+                            //切换查看角色天赋
+                            if(current_info_type == INFO_TYPE_ATTR){
+                                current_info_type = INFO_TYPE_INNATE;
+                            }else if(current_info_type == INFO_TYPE_INNATE){
+                                current_info_type = INFO_TYPE_ATTR;
+                            }
+                            break;
+                        }
+                        case '1':
+                        case '2':
+                        case '3':{
+                            battler_info_idx = key-'0';
+                            break;
+                        }
+                        default: break;
                     }
-                    battler_info_idx = generate_position(current_battler_type);
-                }
-                
-                if(key == 'k'){
-                    //切换查看角色天赋
+
+                    //查看角色天赋/属性
                     if(current_info_type == INFO_TYPE_ATTR){
-                        current_info_type = INFO_TYPE_INNATE;
+                        show_attr_info(current_battler_type, battler_info_idx);
                     }else if(current_info_type == INFO_TYPE_INNATE){
-                        current_info_type = INFO_TYPE_ATTR;
+                        show_innate_info(current_battler_type, battler_info_idx);
+                    }else{
+                        log_warn("Invalid info type");
                     }
+
+                    key = getch();
                 }
 
-                if(key == '1' || key == '2' || key == '3'){
-                    battler_info_idx = key-'0';
-                }
-
-                if(current_info_type == INFO_TYPE_ATTR){
-                    show_attr_info(current_battler_type, battler_info_idx);
-                }else if(current_info_type == INFO_TYPE_INNATE){
-                    show_innate_info(current_battler_type, battler_info_idx);
-                }else{
-                    log_warn("Invalid info type");
-                }
-
-                key = getch();
+                clrzone(KEY_INFO_LINE_NUM, maxcol, maxline-KEY_INFO_LINE_NUM, 0);
+                mvprintw(maxline-KEY_INFO_LINE_NUM, 0, "Current state: select defender");
+                mvprintw(maxline-KEY_INFO_LINE_NUM+1, 0, "KEY: ballter:1;2;3 , q:quit, j:attack, c:info, w:scroll up, s:scroll down");
+                refresh();
+                break;
             }
-
-            clrzone(2, maxcol, maxline-KEY_INFO_LINE_NUM, 0);
-            mvprintw(maxline-KEY_INFO_LINE_NUM, 0, "Current state: select defender");
-            mvprintw(maxline-KEY_INFO_LINE_NUM+1, 0, "KEY: ballter:1;2;3 , q:quit, j:attack, c:info, w:scroll up, s:scroll down");
-            refresh();
+            default:
+                break;
         }
 
         key = getch();
     }
 
-    clrzone(2, maxcol, maxline-KEY_INFO_LINE_NUM, 0);
+    clrzone(KEY_INFO_LINE_NUM, maxcol, maxline-KEY_INFO_LINE_NUM, 0);
     refresh();
 
     return defender_position;

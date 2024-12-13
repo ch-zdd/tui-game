@@ -11,20 +11,18 @@
 
 #define DEFAULT_CFG_PATH "cfg/app.cfg"
 
+static void tk_signal_init(void);
 int init(void)
 {
     char* cfg_path = get_app_context()->cfg_path;
 
-    if(strlen(cfg_path) == 0){
-        tk_print("No config file path");
+    if(TK_OK != log_init()){
         return TK_ERROR;
     }
+
+    tk_signal_init();
 
     if(TK_OK != load_app_cfg(cfg_path)){
-        return TK_ERROR;
-    }
-
-    if(TK_OK != log_init()){
         return TK_ERROR;
     }
 
@@ -60,7 +58,7 @@ void tk_signal_handle(int signo)
     }
 }
 
-void tk_signal_init(void)
+static void tk_signal_init(void)
 {
     signal(SIGINT, tk_signal_handle);
     signal(SIGTERM, tk_signal_handle);
@@ -82,15 +80,17 @@ void final(void)
 
 void print_help(const char* app_name)
 {
-    printf("Usage: %s [OPTION] argument\n", app_name);
-    printf("Options:\n");
-    printf("  -h, --help\n");
-    printf("  -c, --config [path]   Program configuration file path\n");
+    tk_print("Usage: %s [OPTION] [argument]", app_name);
+    tk_print("Options:");
+    tk_print("  -h, --help");
+    tk_print("  -c, --config [path]   Program configuration file path");
 }
 
 int parse_params(int argc, char **argv)
 {
     if(argc < 2){
+        //命令行没有配置参数，使用默认配置文件
+        set_cfg_path(DEFAULT_CFG_PATH);
         return TK_OK;
     }
 
@@ -105,9 +105,12 @@ int parse_params(int argc, char **argv)
         switch(opt) {
             case 'h':
                 print_help(argv[0]);
-                exit(0);
+                exit(EXIT_SUCCESS);
             case 'c':
-                set_cfg_path(optarg);
+                if(TK_OK != set_cfg_path(optarg)){
+                    tk_print("Invalid config path");
+                    exit(EXIT_FAILURE);
+                }
                 break;
             case '?':
                 return TK_ERROR;
@@ -119,14 +122,12 @@ int parse_params(int argc, char **argv)
 
 int main(int argc, char **argv)
 {
-    tk_signal_init();
-    atexit(final);
-
-    set_cfg_path(DEFAULT_CFG_PATH);
     parse_params(argc, argv);
 
+    atexit(final);
+
     if(TK_OK != init()){
-        log_error("Init failed");
+        tk_print("Init failed");
         return -1;
     }
 

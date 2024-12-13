@@ -20,6 +20,9 @@ static int gbattlers_num = 0;
 battler_t battler_init(tk_role_t* attacker, battle_type_t battle_type);
 void set_battler_position(void);
 
+int get_enemy_number(void);
+int get_self_number(void);
+
 void round_start(int round_index);
 void round_end(int round_index);
 
@@ -196,6 +199,32 @@ int battle()
     return TK_OK;
 }
 
+int get_enemy_number(void)
+{
+    int num = 0;
+
+    for(int i = 0; i < gbattlers_num; i++){
+        if(gbattlers[i].type == BATTLE_TYPE_ENEMY && gbattlers[i].position !=0){
+            num++;
+        }
+    }
+
+    return num;
+}
+
+int get_self_number(void)
+{
+    int num = 0;
+
+    for(int i = 0; i < gbattlers_num; i++){
+        if(gbattlers[i].type == BATTLE_TYPE_SELF && gbattlers[i].position !=0){
+            num++;
+        }
+    }
+
+    return num;
+}
+
 int select_defender(int attacker_idx)
 {
     int defender_position = 1; //默认选择的敌人
@@ -203,7 +232,8 @@ int select_defender(int attacker_idx)
     battler_highlight(gbattlers[attacker_idx].type, gbattlers[attacker_idx].position, A_NORMAL, 1);
 
     if(gbattlers[attacker_idx].type == BATTLE_TYPE_ENEMY){
-        defender_position = rand()%MAX_SELF_BATTLER_NUM;
+        defender_position = rand()%get_battlers_num(); //需要判断角色是否已经死亡
+        log_debug("select enemy position %d", defender_position);
         for(int i = 0; i < gbattlers_num; i++){
             if(gbattlers[i].type == BATTLE_TYPE_SELF && gbattlers[i].position == defender_position+1){
                 return i;
@@ -211,7 +241,7 @@ int select_defender(int attacker_idx)
         }
     }else if(gbattlers[attacker_idx].type == BATTLE_TYPE_SELF){
         defender_position = select_enemy_tui(attacker_idx);
-
+        log_debug("select enemy position %d", defender_position);
         for(int i = 0; i < gbattlers_num; i++){
             if(gbattlers[i].type == BATTLE_TYPE_ENEMY && gbattlers[i].position == defender_position){
                 return i;
@@ -326,7 +356,7 @@ int attack(battler_t* attacker, battler_t* defender)
 int calc_damage(battler_t* attacker, battler_t* defender, float damage_extra_ratio)
 {
     char header[64] = "";
-    int print_indetation = 2;
+    int print_indetation = 4;
     memset(header, ' ', print_indetation);
     float random_factor = 1+ (float)(rand()%DAMAGE_RANDOM_FACTOR)/100.0;
 

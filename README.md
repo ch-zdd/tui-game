@@ -10,9 +10,9 @@
 丰富战斗机制
 
 # 快速开始
-mkdir build && cd build
-cmake ..
-make install
+mkdir build && cd build<br>
+cmake ..<br>
+make install<br>
 
 # 运行
 cd test

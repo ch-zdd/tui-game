@@ -22,6 +22,7 @@ void tk_free(void* ptr);
 char* file_to_string(const char* file_name);
 void trim(char *str);
 bool is_all_digits(const char *str);
+bool is_float_num(const char *str);
 
 element_para_t get_elements_para(char* str, char delimiter);
 char* pasrse_array(const char* data, char* ele, size_t ele_max_size, const char* delimiter);
