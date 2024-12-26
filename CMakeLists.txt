@@ -2,7 +2,7 @@
 cmake_minimum_required(VERSION 3.10)
 
 # 设置项目名称
-project(ThreeKingdom)
+project(tui-game)
 
 # 指定 C 语言标准
 set(CMAKE_C_STANDARD 99)
@@ -13,13 +13,16 @@ add_compile_options(-g)
 # 添加全局编译选项 -Wall
 add_compile_options(-Wall)
 
-# 添加库目录
-add_subdirectory(lib)
 
-# 添加主程序目录
-add_subdirectory(src)
+# 添加lib目录下的源文件
+file(GLOB LIB_SOURCES "lib/*.c")
 
-install(DIRECTORY  cfg DESTINATION /home/zdd/my-threee-kingdom/test)
-if(NOT EXISTS /home/zdd/my-threee-kingdom/test/log)
-    file(MAKE_DIRECTORY /home/zdd/my-threee-kingdom/test/log)
+# 添加子项目目录
+add_subdirectory(src/ccz)
+
+
+install(DIRECTORY  cfg DESTINATION ${CMAKE_SOURCE_DIR}/test)
+install(TARGETS ccz DESTINATION ${CMAKE_SOURCE_DIR}/test)
+if(NOT EXISTS test/log)
+    file(MAKE_DIRECTORY test/log)
 endif()

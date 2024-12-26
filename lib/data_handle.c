@@ -2,23 +2,16 @@
 #include <string.h>
 #include <stdio.h>
 #include <ctype.h>
+#include <math.h>
 
 #include "common.h"
 #include "data_handle.h"
 
-void* tk_realloc(void* p, size_t size)
+int count_digits(int number)
 {
-    return realloc(p, size);
-}
-
-void* tk_malloc(size_t size)
-{
-    return malloc(size);
-}
-
-void tk_free(void* ptr)
-{
-    free(ptr);
+    if (number == 0) return 1; // 特殊情况：0有1位
+    number = (number < 0) ? -number : number; // 处理负数
+    return (int)log10(number) + 1;
 }
 
 element_para_t get_elements_para(char* str, char delimiter)
@@ -204,7 +197,7 @@ char* file_to_string(const char* file_name)
     }
 
     rewind(file);
-    data_str = (char*)tk_malloc(file_len+1);
+    data_str = (char*)tg_malloc(file_len+1);
     if(data_str == NULL){
         log_error("Failed to malloc for file [%s]: %s", file_name, strerror(errno));
         goto READ_ERROR;
@@ -221,7 +214,7 @@ char* file_to_string(const char* file_name)
 
 READ_ERROR:
     if(file != NULL) fclose(file);
-    if(data_str != NULL) tk_free(data_str);
+    if(data_str != NULL) tg_free(data_str);
     return NULL;
 }
 
@@ -314,7 +307,7 @@ bool is_float_num(const char *str)
  * @param value 解析后的值存储结构
  * @param value_type 期望解析的值类型
  * 
- * @return 返回TK_OK表示成功，否则返回TK_ERROR表示失败
+ * @return 返回TG_OK表示成功，否则返回TG_ERROR表示失败
  * 
  * 此函数旨在从给定的字符串数据中，解析出指定键对应的值，任何类型的值都视为字符串
  */
@@ -328,13 +321,13 @@ int parse_key_value(const char* data, const char* key, char* const value, size_t
     // 检查输入参数是否为NULL
     if(data == NULL || key == NULL || value == NULL){
         log_error("Invalid input");
-        return TK_ERROR;
+        return TG_ERROR;
     }
 
     // 在数据字符串中寻找键的位置
     if((pstr = strstr(data, key) )== NULL){
         log_error("No key [%s] found", key);
-        return TK_ERROR;
+        return TG_ERROR;
     }
 
     // 键找到后，确定值的开始位置和结束位置
@@ -342,7 +335,7 @@ int parse_key_value(const char* data, const char* key, char* const value, size_t
     p_start = strchr(p_start, ':');
     if(p_start == NULL){
         log_error("No value found for key [%s]", key);
-        return TK_ERROR;
+        return TG_ERROR;
     }
     p_start++;
     p_end = strchr(p_start, '\n');
@@ -350,7 +343,7 @@ int parse_key_value(const char* data, const char* key, char* const value, size_t
         p_end = strchr(p_start, '\0');
         if(p_end == NULL){
             log_error("Invalid data format");
-            return TK_ERROR;
+            return TG_ERROR;
         }
     }
 
@@ -373,7 +366,7 @@ int parse_key_value(const char* data, const char* key, char* const value, size_t
     memcpy(value, p_start, value_len);
     value[value_len]= '\0';
 
-    return TK_OK;
+    return TG_OK;
 }
 
 void comment_remove(char* cfg_context)
@@ -389,7 +382,7 @@ void comment_remove(char* cfg_context)
     char* p_string_end = NULL;
     char* p_cfg_context = NULL;
     size_t copy_len = 0;
-    char* result = (char*)tk_malloc(strlen(cfg_context)+1);
+    char* result = (char*)tg_malloc(strlen(cfg_context)+1);
     memset(result, 0, strlen(cfg_context)+1);
  
     p_string_start = cfg_context;
@@ -432,6 +425,6 @@ void comment_remove(char* cfg_context)
     memset(cfg_context, 0, strlen(cfg_context));
     memcpy(cfg_context, result, strlen(result));
     cfg_context[strlen(result)] = '\0';
-    tk_free(result);
+    tg_free(result);
 }
 

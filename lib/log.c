@@ -19,7 +19,7 @@ static log_context_t log_context = {
 /*
 功能： 获取当前日期和时间，用于表格的时间戳
 */
-char* tk_time_stamp(void)
+char* tg_time_stamp(void)
 {
     time_t rawtime;
     struct tm *info;
@@ -33,7 +33,7 @@ char* tk_time_stamp(void)
 }
 
 // 获取高精度时间戳的函数
-char* tk_high_precision_time_stamp(void)
+char* tg_high_precision_time_stamp(void)
 {
     static char date_time[100];
     struct timespec ts;
@@ -57,7 +57,7 @@ char* tk_high_precision_time_stamp(void)
 }
 
 // 定义一个辅助函数，用于实现带函数名和行号的日志记录  
-void tk_log(const char *file, int line, int level, const char *format, ...) 
+void tg_log(const char *file, int line, int level, const char *format, ...) 
 {
     char buffer[MAX_LOG_SIZE];
     char* print_buf = buffer;
@@ -70,7 +70,7 @@ void tk_log(const char *file, int line, int level, const char *format, ...)
         return;
     }
     
-    print_buf += snprintf(print_buf, level_str_len, "%s <%-5s> | ", tk_time_stamp(), log_level_to_string(level));
+    print_buf += snprintf(print_buf, level_str_len, "%s <%-5s> | ", tg_time_stamp(), log_level_to_string(level));
 
     va_start(args, format);  
     // 首先，我们打印出日志的主要内容（采用vfprintf函数处理可变参数）  
@@ -91,7 +91,7 @@ void tk_log(const char *file, int line, int level, const char *format, ...)
     fflush(log_context.fp);
 }
 
-void tk_log_text(const char* format, ...)
+void tg_log_text(const char* format, ...)
 {
     FILE* log_file = log_context.fp;
     char buffer[MAX_LOG_SIZE];
@@ -110,13 +110,13 @@ void tk_log_text(const char* format, ...)
     
     va_start(args, format);  
     // 首先，我们打印出日志的主要内容（采用vfprintf函数处理可变参数）  
-    print_buf += vsnprintf(print_buf, info_len, format, args);  
+    vsnprintf(print_buf, info_len, format, args);  
     va_end(args);
 
-    fprintf(log_context.default_fp, "%s\n", print_buf);
+    fprintf(log_context.default_fp, "%s", print_buf);
     //保存到用户自定义日志文件
     if(log_context.fp != NULL){
-        fprintf(log_context.fp, "%s\n", print_buf);
+        fprintf(log_context.fp, "%s", print_buf);
     }
     //因为没有性能要求，所以 这里直接实时刷新日志
     fflush(log_context.default_fp);
@@ -133,12 +133,12 @@ int log_init(void)
 
     FILE* default_log_file = fopen(DEFAULT_LOG_PATH, "w");
     if(default_log_file == NULL){
-        tk_print("Open default log file [%s] failed !, %s", DEFAULT_LOG_PATH, strerror(errno));
-        return TK_ERROR;
+        tg_print("Open default log file [%s] failed !, %s", DEFAULT_LOG_PATH, strerror(errno));
+        return TG_ERROR;
     }
     log_context.default_fp = default_log_file;
 
-    return TK_OK;
+    return TG_OK;
 }
 
 void log_final(void)
@@ -156,22 +156,22 @@ int set_log_file(const char* path)
     FILE* log_file = fopen(path, "w");
     if(log_file == NULL){
         log_error("open log file [%s] failed!, %s", path, strerror(errno));
-        return TK_ERROR;
+        return TG_ERROR;
     }
 
     log_context.fp = log_file;
-    return TK_OK;
+    return TG_OK;
 }
 
 int set_log_level(log_levle_t level)
 {
     if(level >= LOG_LEVEL_MAX){
         log_error("invalid log level %d", level);
-        return TK_ERROR;
+        return TG_ERROR;
     }
 
     log_context.level = level;
-    return TK_OK;
+    return TG_OK;
 }
 
 const char* log_level_to_string(log_levle_t level)
@@ -236,7 +236,7 @@ void print_array_int(int* data, size_t len, int n_spaces)
         return;
     }
 
-    TK_INDETION(format, n_spaces);
+    TG_INDETION(format, n_spaces);
 
     log_text("%s(", format);
     for(i = 0; i<(len -1); i++){

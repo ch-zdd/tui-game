@@ -20,24 +20,28 @@
 
 #define CHECK_FMT(a, b)	__attribute__((format(printf, a, b)))
 
-#define TK_ABORT() \
+#define TG_ABORT() \
     do{\
         log_error("The current error prevents the program from starting, abort");\
         exit(1);\
     }while(0)
-    
+
+#define tg_malloc(size) malloc(size)
+#define tg_free(ptr) free(ptr)
+#define tg_realloc(ptr, size) realloc(ptr, size)    
 
 #define PTR_CONVERT_TYPE(p, type) (*((type*)(p)))
-#define TK_CHANCE_APPEAR(chance) ( ((float)(rand()%100)) < chance*100)
-#define TK_MAX(a,b) (a>b?a:b)
-#define TK_MIN(a,b) (a<b?a:b)
+#define TG_RANDOM_SUCCESS(chance) ( ((float)(rand()%100)) < chance*100)
+#define TG_MAX(a,b) (a>b?a:b)
+#define TG_MIN(a,b) (a<b?a:b)
 #define IS_CH_NUM(ch) (ch>='0' && ch<='9')
+#define IS_CH_ALPHA(ch) (ch>='a' && ch<='z') || (ch>='A' && ch<='Z')
 
 #define MAX_PATH_LEN 256
 
-#define TK_NOT_FOUND -2
-#define TK_OK 0
-#define TK_ERROR -1
+#define TG_NOT_FOUND -2
+#define TG_OK 0
+#define TG_ERROR -1
 
 typedef enum{
     type_int,

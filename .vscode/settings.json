@@ -36,6 +36,10 @@
         "forward_list": "c",
         "unordered_map": "c",
         "unordered_set": "c",
-        "vector": "c"
+        "vector": "c",
+        "app-tui.h": "c",
+        "app-context.h": "c",
+        "tui.h": "c",
+        "math.h": "c"
     }
 }

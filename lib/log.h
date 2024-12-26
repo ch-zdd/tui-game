@@ -1,16 +1,16 @@
-#ifndef TK_LOG_H
-#define TK_LOG_H
+#ifndef TG_LOG_H
+#define TG_LOG_H
 
 #include <stdio.h>
 
-#define log_info(format, ...)  tk_log(__FILE__, __LINE__, LOG_LEVEL_INFO,  format, ##__VA_ARGS__)
-#define log_debug(format, ...) tk_log(__FILE__, __LINE__, LOG_LEVEL_DEBUG, format, ##__VA_ARGS__)
-#define log_warn(format, ...)  tk_log(__FILE__, __LINE__, LOG_LEVEL_WARN,  format, ##__VA_ARGS__)
-#define log_error(format, ...) tk_log(__FILE__, __LINE__, LOG_LEVEL_ERROR, format, ##__VA_ARGS__)
-#define log_text(format, ...)  tk_log_text(format"\n", ##__VA_ARGS__)
-#define tk_print(format, ...)  fprintf(stderr, format"\n", ##__VA_ARGS__)
+#define log_info(format, ...)  tg_log(__FILE__, __LINE__, LOG_LEVEL_INFO,  format, ##__VA_ARGS__)
+#define log_debug(format, ...) tg_log(__FILE__, __LINE__, LOG_LEVEL_DEBUG, format, ##__VA_ARGS__)
+#define log_warn(format, ...)  tg_log(__FILE__, __LINE__, LOG_LEVEL_WARN,  format, ##__VA_ARGS__)
+#define log_error(format, ...) tg_log(__FILE__, __LINE__, LOG_LEVEL_ERROR, format, ##__VA_ARGS__)
+#define log_text(format, ...)  tg_log_text(format"\n", ##__VA_ARGS__)
+#define tg_print(format, ...)  fprintf(stderr, format"\n", ##__VA_ARGS__)
 
-#define TK_INDETION(str, n_spaces) \
+#define TG_INDETION(str, n_spaces) \
     do{                                 \
         str[n_spaces] = '\0';           \
         memset(str, ' ', n_spaces);     \
@@ -32,8 +32,8 @@ typedef struct{
     FILE* default_fp; //必须存在
 }log_context_t;
 
-void tk_log(const char* func_name, int line_number, int level, const char* format, ...);
-void tk_log_text(const char* format, ...);
+void tg_log(const char* func_name, int line_number, int level, const char* format, ...);
+void tg_log_text(const char* format, ...);
 int log_init(void);
 void log_final(void);
 int set_log_file(const char* path);

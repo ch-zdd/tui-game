@@ -15,9 +15,7 @@ typedef struct{
     int number;
 }element_para_t;
 
-void* tk_realloc(void* p, size_t size);
-void* tk_malloc(size_t size);
-void tk_free(void* ptr);
+int count_digits(int number);
 
 char* file_to_string(const char* file_name);
 void trim(char *str);
