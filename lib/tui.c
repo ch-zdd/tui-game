@@ -17,11 +17,62 @@ void tui_init()
         log_warn("Your terminal does not support color\n");
     }
     start_color();
-    init_pair(0,COLOR_WHITE,COLOR_BLACK);
+
+    init_pair(0,COLOR_BLACK,COLOR_BLACK);
     init_pair(1,COLOR_RED,COLOR_BLACK);
-    init_pair(2,COLOR_BLUE,COLOR_BLACK);
+    init_pair(2,COLOR_GREEN,COLOR_BLACK);
     init_pair(3,COLOR_YELLOW,COLOR_BLACK);
-    init_pair(4,COLOR_GREEN,COLOR_BLACK);
+    init_pair(4,COLOR_BLUE,COLOR_BLACK);
+    init_pair(5,COLOR_MAGENTA,COLOR_BLACK);
+    init_pair(6,COLOR_CYAN,COLOR_BLACK);
+    init_pair(7,COLOR_WHITE,COLOR_BLACK);
+}
+
+int color_to_index(char* color_name)
+{
+    if(strcmp(color_name, "black") == 0){
+        return 0;
+    }else if(strcmp(color_name, "red") == 0){
+        return 1;
+    }else if(strcmp(color_name, "green") == 0){
+        return 2;
+    }else if(strcmp(color_name, "yellow") == 0){
+        return 3;
+    }else if(strcmp(color_name, "blue") == 0){
+        return 4;
+    }else if(strcmp(color_name, "magenta") == 0){
+       return 5;
+    }else if(strcmp(color_name, "cyan") == 0){
+        return 6;
+    }else if(strcmp(color_name, "white") == 0){
+        return 7;
+    }else{ 
+        return TG_ERROR;
+    }
+}
+
+const char* color_to_string(int index)
+{
+    switch(index){
+        case 0:
+            return "black";
+        case 1:
+            return "red";
+        case 2:
+            return "green";
+        case 3:
+            return "yellow";
+        case 4:
+            return "blue";
+        case 5:
+            return "magenta";
+        case 6:
+            return "cyan";
+        case 7:
+            return "white";
+        default:
+            return "unknown";
+    }
 }
 
 void tui_final()

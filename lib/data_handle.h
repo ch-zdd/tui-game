@@ -4,6 +4,8 @@
 #include <stdbool.h>
 #include "common.h"
 
+#define MAX_ELEMENTS_LEN 1024
+
 #define FILL_LINE_SPACES(str, n_spaces) \
     do{                                 \
         str[n_spaces] = '\0';           \
@@ -15,10 +17,14 @@ typedef struct{
     int number;
 }element_para_t;
 
+int count_char(const char* str, char ch);
 int count_digits(int number);
 
 char* file_to_string(const char* file_name);
+
+void trim_chars(char* str, const char* chars);
 void trim(char *str);
+void remove_quotation_marks(char* str);
 bool is_all_digits(const char *str);
 bool is_float_num(const char *str);
 

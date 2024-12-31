@@ -9,11 +9,13 @@
 #include "app-init.h"
 #include "app.h"
 
-#define DEFAULT_CFG_PATH "cfg/app_ccz.cfg"
+#define DEFAULT_CFG_PATH "cfg/app_tetris.cfg"
 
 static void tk_signal_init(void);
 int init(void)
 {
+    srand(time(NULL));
+
     if(TG_OK != log_init()){
         return TG_ERROR;
     }
@@ -113,6 +115,7 @@ int parse_params(int argc, char **argv)
 
 int main(int argc, char **argv)
 {
+    init_app_context();
     parse_params(argc, argv);
 
     atexit(final);

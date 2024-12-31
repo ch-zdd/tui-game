@@ -116,14 +116,14 @@ int load_game_cfg(void)
     comment_remove(game_cfg_str);
 
     //分割不同角色的数据,并加载不同角色的数据
-    char role_buffer[MAX_ROLE_DATA_SIZE];
+    char role_buffer[MAX_ELEMENTS_SIZE];
     p = game_cfg_str;
     while(1){
         if(ctx->role_num > MAX_ROLE_NUM){
             log_warn("role num is too much, ignore the subsequent roles");
             break;
         }
-        memset(role_buffer, 0, MAX_ROLE_DATA_SIZE);
+        memset(role_buffer, 0, MAX_ELEMENTS_SIZE);
         p = parse_cfg_label(p, "@role_attr", role_buffer);
         if(p == NULL){
             break;
@@ -140,7 +140,7 @@ int load_game_cfg(void)
 
     //加载角色的共同设定
     log_info("load role common setting");
-    memset(role_buffer, 0, MAX_ROLE_DATA_SIZE);
+    memset(role_buffer, 0, MAX_ELEMENTS_SIZE);
     if(NULL == parse_cfg_label(game_cfg_str, "@role_common", role_buffer)){
         log_error("No role common setting label found");
         goto read_error;
@@ -381,12 +381,12 @@ void show_role(tk_role_t* role)
     log_text("    level: %d", role->level);
     log_text("    attribute(base/growth):");
     log_text("        force (%0.2f/%0.2f) defense (%0.2f/%0.2f) intelligence = (%0.2f/%0.2f) agile (%0.2f/%0.2f) morale (%0.2f/%0.2f) speed (%0.2f/%0.2f)", 
-                        role->attr.force.base, growth_to_char(role->attr.force.growth),
-                        role->attr.intelligence.base, growth_to_char(role->attr.intelligence.growth),
-                        role->attr.defense.base, growth_to_char(role->attr.defense.growth),
-                        role->attr.agile.base, growth_to_char(role->attr.agile.growth),
-                        role->attr.morale.base, growth_to_char(role->attr.morale.growth),
-                        role->attr.speed.base, growth_to_char(role->attr.speed.growth));
+                        role->attr.force.base, role->attr.force.growth,
+                        role->attr.intelligence.base, role->attr.intelligence.growth,
+                        role->attr.defense.base, role->attr.defense.growth,
+                        role->attr.agile.base, role->attr.agile.growth,
+                        role->attr.morale.base, role->attr.morale.growth,
+                        role->attr.speed.base, role->attr.speed.growth);
     
     log_text("    allocate_attribute_points: %d", role->allocate_attribute_points);
 }

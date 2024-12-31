@@ -7,7 +7,7 @@
 #include "common.h"
 #include "log.h"
 
-#define DEFAULT_LOG_PATH "/tmp/tk.log"
+#define DEFAULT_LOG_PATH "/tmp/tui-game.log"
 #define MAX_LOG_SIZE 1024
 
 static log_context_t log_context = {

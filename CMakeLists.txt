@@ -19,10 +19,12 @@ file(GLOB LIB_SOURCES "lib/*.c")
 
 # 添加子项目目录
 add_subdirectory(src/ccz)
+add_subdirectory(src/tetris)
 
-
-install(DIRECTORY  cfg DESTINATION ${CMAKE_SOURCE_DIR}/test)
-install(TARGETS ccz DESTINATION ${CMAKE_SOURCE_DIR}/test)
 if(NOT EXISTS test/log)
     file(MAKE_DIRECTORY test/log)
 endif()
+
+install(DIRECTORY  cfg DESTINATION ${CMAKE_SOURCE_DIR}/test)
+install(TARGETS ccz DESTINATION ${CMAKE_SOURCE_DIR}/test)
+install(TARGETS tetris DESTINATION ${CMAKE_SOURCE_DIR}/test)

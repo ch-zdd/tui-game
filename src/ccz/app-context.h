@@ -6,7 +6,6 @@
 #include <ncurses.h>
 
 #define MAX_ROLE_NUM 10
-#define MAX_ROLE_DATA_SIZE 1024
 #define MAX_INNATE_SKILL_NUM 5
 #define MAX_NAME_STRING_LEN 30
 #define MAX_THREAD_NUM 2

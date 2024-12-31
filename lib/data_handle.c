@@ -7,6 +7,26 @@
 #include "common.h"
 #include "data_handle.h"
 
+int count_char(const char* str, char ch)
+{
+    if(str == NULL){
+        log_error("Input NULL ptr");
+        return 0;
+    }
+
+    int count = 0;
+    const char* p = str;
+    while(*p != '\0'){
+        if(*p == ch){
+            count++;
+        }
+        p++;
+    }
+
+    return count;
+}
+
+// 计算一个整数的位数
 int count_digits(int number)
 {
     if (number == 0) return 1; // 特殊情况：0有1位
@@ -14,6 +34,7 @@ int count_digits(int number)
     return (int)log10(number) + 1;
 }
 
+// 获取字符串中元素的个数和最大长度
 element_para_t get_elements_para(char* str, char delimiter)
 {
     int max_len = 0;
@@ -120,7 +141,8 @@ const char* parse_cfg_label(const char* data, const char* label_name, char* labe
 
     // 尝试找到标签名称在数据中的位置，如果找不到，则返回NULL
     pstart = strstr(data, label_name);
-    if(pstart == NULL){
+    if(pstart == NULL || pstart[strlen(label_name)] != '\n'){
+        log_debug("No label [%s] found", label_name);
         return NULL;
     }
 
@@ -155,6 +177,11 @@ const char* parse_cfg_label(const char* data, const char* label_name, char* labe
         p++;
     }
 
+    if(pstart-pend >= MAX_ELEMENTS_SIZE){
+        log_error("The label value is too long");
+        return NULL;
+    }
+
     // 将标签值复制到label_context缓冲区中
     memcpy(label_context, pstart, pend-pstart);
     // 在label_context缓冲区中终止字符串
@@ -164,6 +191,14 @@ const char* parse_cfg_label(const char* data, const char* label_name, char* labe
     return p;
 }
 
+/**
+ * 从文件中读取数据到字符串
+ * 
+ * 该函数从指定的文件中读取数据，并将其存储到一个字符串中，然后返回该字符串
+ * 
+ * @param file_name 要读取数据的文件名
+ * @return 读取到的数据字符串，如果读取失败，则返回NULL
+ */
 char* file_to_string(const char* file_name)
 {
     long file_len = 0;
@@ -218,6 +253,29 @@ READ_ERROR:
     return NULL;
 }
 
+// 去除字符串中指定的字符，chars为要删除的字符集
+void trim_chars(char* str, const char* chars)
+{
+    if (str == NULL || chars == NULL) {
+        return;
+    }
+
+    int len = strlen(str);
+    int start = 0;
+    int result_index = 0;
+
+    while (start < len) {
+        if (strchr(chars, str[start]) == NULL) {
+            str[result_index] = str[start];
+            result_index++;
+        }
+        start++;
+    }
+
+    // 终止字符串
+    str[result_index] = '\0';
+}
+
 // 去除字符串首尾空格
 void trim(char *str)
 {
@@ -248,6 +306,7 @@ void trim(char *str)
     }
 }
 
+// 去除字符串首尾的引号
 void remove_quotation_marks(char* str)
 {
     if(str == NULL){
@@ -261,6 +320,7 @@ void remove_quotation_marks(char* str)
     }
 }
 
+// 判断字符串是否全部由数字组成
 bool is_all_digits(const char *str)
 {
     if (str == NULL) {
@@ -277,6 +337,7 @@ bool is_all_digits(const char *str)
     return true;
 }
 
+// 判断字符串是否为浮点数
 bool is_float_num(const char *str)
 {
     if (str == NULL) {
@@ -301,7 +362,10 @@ bool is_float_num(const char *str)
 
 /**
  * 解析键值对字符串
- * 
+ * 如果是多行数据，形式应该如下,以"-"开头，以";"结尾：
+ * -key: value1
+ *       value2
+ *       value3; 
  * @param data 原始数据字符串
  * @param key 要解析的键
  * @param value 解析后的值存储结构
@@ -316,6 +380,7 @@ int parse_key_value(const char* data, const char* key, char* const value, size_t
     char* pstr = NULL;
     char* p_start = NULL;
     char* p_end = NULL;
+    char end_char = '\n';
     size_t value_len = 0;
 
     // 检查输入参数是否为NULL
@@ -326,8 +391,14 @@ int parse_key_value(const char* data, const char* key, char* const value, size_t
 
     // 在数据字符串中寻找键的位置
     if((pstr = strstr(data, key) )== NULL){
-        log_error("No key [%s] found", key);
+        log_debug("No key [%s] found", key);
         return TG_ERROR;
+    }
+
+    if(pstr>data && *(pstr-1) == '-'){
+        end_char = ';';
+    }else{
+        end_char = '\n';
     }
 
     // 键找到后，确定值的开始位置和结束位置
@@ -338,8 +409,12 @@ int parse_key_value(const char* data, const char* key, char* const value, size_t
         return TG_ERROR;
     }
     p_start++;
-    p_end = strchr(p_start, '\n');
+    p_end = strchr(p_start, end_char);
     if(p_end == NULL){
+        if(end_char == ';'){
+            log_error("Multiple rows of data not found for key [%s]", key);
+            return TG_ERROR;
+        }
         p_end = strchr(p_start, '\0');
         if(p_end == NULL){
             log_error("Invalid data format");

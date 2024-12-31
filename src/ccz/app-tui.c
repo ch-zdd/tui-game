@@ -17,6 +17,14 @@ int app_tui_init(void)
         getch();
         return TG_ERROR;
     }
+
+    if(tui->main.scr_col < get_app_context()->battle_window_width*2){
+        printw("screen size(line:%d, at least 16; column:%d, at least twice the width of the battle window %d) too small, press any key to exit...", 
+            tui->main.scr_line, tui->main.scr_col, get_app_context()->battle_window_width*2);
+        getch();
+        return TG_ERROR;
+    }
+
     tui->main.active = true;
     tui->main.w = stdscr;
     if(stdscr == NULL){

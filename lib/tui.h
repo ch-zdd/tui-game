@@ -5,6 +5,8 @@
 #include <ncurses.h>
 #include "common.h"
 
+#define MAX_COLOR_LEN 16
+
 #define wclrctx(w) do{werase(w); box(w, 0, 0);}while(0)
 
 #define clrzone(lines, cols, y, x) wclrzone(stdscr, lines, cols, y, x)
@@ -32,6 +34,9 @@ typedef struct {
 
 void tui_init();
 void tui_final();
+
+int color_to_index(char* color_name);
+const char* color_to_string(int index);
 
 void wchar_blink(WINDOW* win, int line, int col, int n, int blink_times);
 scroll_t* new_scroll_obj(WINDOW* scr, int scr_col, int scr_line, bool has_border);
