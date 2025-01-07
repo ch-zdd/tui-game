@@ -21,7 +21,7 @@ queue_t* queue_create(uint8_t cell_size, int size)
     q->next = 0;
     //留出一个空间用于分辨队列空和满的情况
     q->max_size = size+1;
-    q->cell_size = sizeof(int);
+    q->cell_size = cell_size;
     q->data = (uint8_t*)tg_malloc(q->cell_size*q->max_size);
     if(!q->data){
         log_error("malloc data failed\n");
