@@ -10,6 +10,7 @@ void tui_init()
 {
     setlocale(LC_ALL, "");
     initscr();
+    keypad(stdscr, TRUE); // 启用 keypad 模式
     curs_set(0);          // 隐藏光标  
     cbreak();
     noecho();

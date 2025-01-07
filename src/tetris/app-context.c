@@ -3,6 +3,7 @@
 #include "app-context.h"
 #include "../../lib/data_handle.h"
 #include "../../lib/tui.h"
+#include "app-tui.h"
 
 #define MAX_KEY_VALUE_LEN 1024
 
@@ -71,9 +72,19 @@ int parse_app_cfg(const char* cfg_path)
         }
         context.game_window_width = atoi(buffer)/2*2;
     }else{
-        context.game_window_width = 48;
+        context.game_window_width = DEFAULT_WINDOW_WIDTH;
     }
-    log_info("game window width: %d", context.game_window_width);
+    if(parse_key_value(cfg_str, "game_window_height", buffer, 1024) == TG_OK){
+        if(atoi(buffer)<=0){
+            log_error("Invalid battle window height");
+            return TG_ERROR;
+        }
+        context.game_window_height = atoi(buffer) > get_windows_para()->main.scr_line ? get_windows_para()->main.scr_line : atoi(buffer);
+    }else{
+        context.game_window_height = DEFAULT_WINDOW_HEIGHT > get_windows_para()->main.scr_line ? get_windows_para()->main.scr_line : DEFAULT_WINDOW_HEIGHT;
+    }
+
+    log_info("game window: %d * %d", context.game_window_width, context.game_window_height);
 
     tg_free(cfg_str);
     return TG_OK;

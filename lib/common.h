@@ -10,7 +10,7 @@
 #include <stdlib.h>
 #include <pthread.h>
 
-#include "log.h"
+#include "tg_log.h"
 
 #define COLOR_BOLD_YELLOW  "\033[1;33m"    /* Bold Yellow */
 #define PRINT_COLOR_GREEEN "\033[1;40;32m" /* green */
@@ -41,6 +41,7 @@
 
 #define TG_NOT_FOUND -2
 #define TG_OK 0
+#define TG_DONE 1
 #define TG_ERROR -1
 
 typedef enum{

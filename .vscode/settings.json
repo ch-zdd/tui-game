@@ -41,6 +41,7 @@
         "app-context.h": "c",
         "tui.h": "c",
         "math.h": "c",
-        "map": "c"
+        "map": "c",
+        "time.h": "c"
     }
 }

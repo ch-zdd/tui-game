@@ -7,6 +7,41 @@
 tui_game_screen_t Game_screen;
 tetris_window_t Windows;
 
+tetris_window_t* get_windows_para(void)
+{
+    return &Windows;
+}
+
+tui_game_screen_t* get_game_screen(void)
+{
+    return &Game_screen;
+}
+
+int game_screen_create(int width, int height)
+{
+    Game_screen.width = width;
+    Game_screen.height = height;
+    Game_screen.screen = (uint8_t*)tg_malloc(Game_screen.width*Game_screen.height*sizeof(uint8_t));
+    log_debug("Allocate memory for game screen, %d bytes", Game_screen.width*Game_screen.height*sizeof(uint8_t));
+    if(Game_screen.screen == NULL){
+        log_error("Failed to allocate memory for game screen, %s", strerror(errno));
+        return TG_ERROR;
+    }
+    memset(Game_screen.screen, 0, Game_screen.width*Game_screen.height*sizeof(uint8_t));
+
+    return TG_OK;
+}
+
+int game_screen_destroy(void)
+{
+    if(Game_screen.screen != NULL){
+        tg_free(Game_screen.screen);
+        Game_screen.screen = NULL;
+    }
+
+    return TG_OK;
+}
+
 int app_tui_init(void)
 {
     tui_init();
@@ -41,33 +76,12 @@ int app_tui_init(void)
     strncpy(tui->info.store_path, "battler_info.scr", sizeof(tui->main.store_path));
     strncpy(tui->statistics.store_path, "battle.scr", sizeof(tui->main.store_path));
 
-    tui->game.scr_line = tui->main.scr_line;
-    tui->game.scr_col = get_app_context()->game_window_width;;
-
-    tui->info.scr_line = tui->main.scr_line/2;
-    tui->info.scr_col = tui->main.scr_col-tui->game.scr_col;
-
-    tui->statistics.scr_line = tui->main.scr_line-tui->info.scr_line;
-    tui->statistics.scr_col = tui->main.scr_col-tui->game.scr_col;
-
-    Game_screen.width = tui->game.scr_col-2;
-    Game_screen.height = tui->game.scr_line-2;
-    Game_screen.screen = (uint8_t*)tg_malloc(Game_screen.width*Game_screen.height*sizeof(uint8_t));
-    if(Game_screen.screen == NULL){
-        log_error("Failed to allocate memory for game screen");
-        return TG_ERROR;
-    }
-    memset(Game_screen.screen, 0, Game_screen.width*Game_screen.height*sizeof(uint8_t));
-
     return TG_OK;
 }
 
 int app_tui_final(void)
 {
-    if(Game_screen.screen != NULL){
-        tg_free(Game_screen.screen);
-        Game_screen.screen = NULL;
-    }
+    game_screen_destroy();
     delwin(stdscr);
     tui_final();
 
@@ -85,6 +99,15 @@ int game_window_draw(void)
         log_error("ERROR: tui is not initialized");
         return TG_ERROR;
     }
+
+    game->scr_line = get_app_context()->game_window_height;
+    game->scr_col = get_app_context()->game_window_width;
+
+    info->scr_line = main->scr_line/2;
+    info->scr_col = main->scr_col-game->scr_col;
+
+    stat->scr_line = main->scr_line-info->scr_line;
+    stat->scr_col = main->scr_col-game->scr_col;
 
     mvaddstr(main->scr_line/2, main->scr_col/2 - 12, "Press any key to start...");
     getch();
@@ -107,13 +130,13 @@ int game_window_draw(void)
     stat->active = true;
 
     getch();
+    mvwprintw(game->w, game->scr_line/2, game->scr_col/2, "Game start...");
+    wrefresh(game->w);
 
     return TG_OK;
 }
 
-
-
-int tetromino_draw(tui_tetromino_t* tetromino)
+int tetromino_draw(tui_tetromino_t tetromino)
 {
     return TG_OK;
 }

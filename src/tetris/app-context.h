@@ -31,9 +31,8 @@ typedef struct{
 typedef struct{
     char cfg_path[MAX_PATH_LEN];
     char game_cfg_path[MAX_PATH_LEN];
-
-    pthread_t tk_thread[MAX_THREAD_NUM];
     int game_window_width;
+    int game_window_height;
 
     tetromino_t tetromino[MAX_TETROMINOES_NUM];
     int tetrominoes_num;

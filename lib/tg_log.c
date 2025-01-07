@@ -2,10 +2,10 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
-#include <time.h>
 
 #include "common.h"
-#include "log.h"
+#include "tg_log.h"
+#include "tg_time.h"
 
 #define DEFAULT_LOG_PATH "/tmp/tui-game.log"
 #define MAX_LOG_SIZE 1024
@@ -15,46 +15,6 @@ static log_context_t log_context = {
     .fp = NULL,
     .level = LOG_LEVEL_INFO
 };
-
-/*
-功能： 获取当前日期和时间，用于表格的时间戳
-*/
-char* tg_time_stamp(void)
-{
-    time_t rawtime;
-    struct tm *info;
-    static char date_time[25];
-
-    time( &rawtime );
-    info = localtime( &rawtime );
- 
-    strftime(date_time, 25, "%H:%M:%S", info);
-    return date_time;
-}
-
-// 获取高精度时间戳的函数
-char* tg_high_precision_time_stamp(void)
-{
-    static char date_time[100];
-    struct timespec ts;
-    struct tm *info;
-
-    // 获取当前时间戳
-    if (clock_gettime(CLOCK_REALTIME, &ts) == -1) {
-        perror("clock_gettime");
-        return NULL;
-    }
-
-    // 将时间戳转换为本地时间
-    info = localtime(&ts.tv_sec);
-
-    // 格式化时间为字符串，包括纳秒部分
-    snprintf(date_time, sizeof(date_time), "%04d-%02d-%02d %02d:%02d:%02d.%09ld",
-             info->tm_year + 1900, info->tm_mon + 1, info->tm_mday,
-             info->tm_hour, info->tm_min, info->tm_sec, ts.tv_nsec);
-
-    return date_time;
-}
 
 // 定义一个辅助函数，用于实现带函数名和行号的日志记录  
 void tg_log(const char *file, int line, int level, const char *format, ...) 

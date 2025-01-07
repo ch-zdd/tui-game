@@ -34,5 +34,6 @@ int parse_key_value(const char* data, const char* key, char* const value, size_t
 const char*  parse_cfg_label(const char* data, const char* attr_name, char* attr_context);
 
 void comment_remove(char* cfg_context);
+char* strchr2(const char* str, char c);
 
 #endif

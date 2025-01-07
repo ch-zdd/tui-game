@@ -466,7 +466,7 @@ void comment_remove(char* cfg_context)
     p_cfg_context = result;
     p = cfg_context;
     while(1){
-        p = strchr(p_copy_start, '#');
+        p = strchr2(p_copy_start, '#');
         if(p == NULL){
             p = p_string_end;
         }
@@ -503,3 +503,61 @@ void comment_remove(char* cfg_context)
     tg_free(result);
 }
 
+/*
+ * 寻找字符串中指定字符的位置，如果字符在非转义引号内，则忽略该字符，否则效果等同strchr函数
+ * 如果引号不成对，则返回NULL， 引号mark可以替换成其他符号
+ *
+*/
+char* strchr2(const char* str, char c)
+{
+    if(str == NULL){
+        return NULL;
+    }
+
+    char* forward_str = NULL;
+    char* backward_str = NULL;
+    char* p = (char*)str;
+    char mark = '"';
+    const char* p_str_end  = str+strlen(str);
+    int count_qm = 0;
+
+
+
+    do{
+        count_qm = 0;
+        p = strchr(p, c);
+        if(p == NULL){
+            return NULL;
+        }
+
+        //前向查找指定符号 " , 如果找到的个数为偶数，则引号是成对出现的，否则字符c在引号内，忽略字符C，
+        forward_str = p-1;
+        while(forward_str >= str && *forward_str != '\n'){
+            if(*forward_str == mark && (forward_str <= str || *(forward_str-1) != '\\')){
+                count_qm++;
+            }
+            forward_str--;
+        }
+
+        if(count_qm%2 == 0){
+            return p;
+        }
+
+        //向后查找指定符号 ", 运行到此处，说明字符c在引号内，需要跳过引号内的字符，继续查找，前提为引号不是转义字符
+        backward_str = p+1;
+        while(backward_str < p_str_end && *backward_str != '\n'){
+            if(*backward_str == mark &&  *(forward_str-1) != '\\'){
+                p = backward_str+1;
+                break;
+            }
+            backward_str++;
+        }
+
+        if(backward_str >= p_str_end || *backward_str == '\n'){
+            printf("Invalid string format\n");
+            return NULL;
+        }
+    }while(p <= p_str_end);
+
+    return NULL;
+}
