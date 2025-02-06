@@ -348,7 +348,7 @@ int scroll_print(scroll_t* scroll, const char* format, ...)
 }
 
 /**
- * 滚动战斗报告屏幕的显示内容
+ * 滚动屏幕的显示内容
  * 
  * @param direction 滚动方向，'w' 表示向上滚动，'s' 表示向下滚动
  * @return 返回执行结果，0 表示成功，其他值表示失败
@@ -375,7 +375,6 @@ int scroll_direction(scroll_t* scroll, int direction)
         if(scroll->fisrt_display_line_idx >= scroll->total_str_lines-scroll->max_display_lines){
             return TG_OK;
         }
-
 
         scroll->fisrt_display_line_idx++;
     }else{

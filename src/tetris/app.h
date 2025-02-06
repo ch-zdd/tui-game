@@ -3,5 +3,6 @@
 #include "app-context.h"
 
 int app_run(void);
+int app_stop(void);
 
 #endif

@@ -66,6 +66,7 @@ void run(void)
 
 void final(void)
 {
+    app_stop();
     app_final();
     log_info("Bye!");
     log_final();

@@ -20,7 +20,9 @@ tui_game_screen_t* get_game_screen(void)
 int game_screen_create(int width, int height)
 {
     Game_screen.width = width;
+    Game_screen.x = 0;
     Game_screen.height = height;
+    Game_screen.y = 0;
     Game_screen.screen = (uint8_t*)tg_malloc(Game_screen.width*Game_screen.height*sizeof(uint8_t));
     log_debug("Allocate memory for game screen, %d bytes", Game_screen.width*Game_screen.height*sizeof(uint8_t));
     if(Game_screen.screen == NULL){
@@ -138,5 +140,9 @@ int game_window_draw(void)
 
 int tetromino_draw(tui_tetromino_t tetromino)
 {
+    //int x = Game_screen.x + tetromino.x;
+    //int y = Game_screen.y + tetromino.y;
+    //int i = 0;
+    
     return TG_OK;
 }

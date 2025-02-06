@@ -38,7 +38,9 @@ typedef struct{
 typedef struct{
     uint8_t* screen;
     int width;
+    int x;
     int height;
+    int y;
 }tui_game_screen_t;
 
 extern scroll_t *tk_scroll;

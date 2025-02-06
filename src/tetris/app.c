@@ -72,6 +72,13 @@ int app_run(void)
     return TG_OK;
 }
 
+int app_stop()
+{
+    stop_detect_input_task();
+    stop_tetromino_down_timer_task();
+    return TG_OK;
+}
+
 void game_ctx_init(void)
 {
     memset(&Game_context, 0, sizeof(Game_context));
@@ -115,7 +122,7 @@ void game_loop(void)
         clear_input();
 
         while(1){
-            //返回TG_DONE代表无法方块已经到达底部，无法再操作
+            //返回TG_DONE代表方块已经到达底部，无法再操作
             if(TG_DONE == handle_input(&current_tui_tetromino)){
                 break;
             }
