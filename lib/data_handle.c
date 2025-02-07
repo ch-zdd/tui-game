@@ -546,7 +546,7 @@ char* strchr2(const char* str, char c)
         //向后查找指定符号 ", 运行到此处，说明字符c在引号内，需要跳过引号内的字符，继续查找，前提为引号不是转义字符
         backward_str = p+1;
         while(backward_str < p_str_end && *backward_str != '\n'){
-            if(*backward_str == mark &&  *(forward_str-1) != '\\'){
+            if(*backward_str == mark &&  *(backward_str-1) != '\\'){
                 p = backward_str+1;
                 break;
             }
