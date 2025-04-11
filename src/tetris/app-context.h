@@ -5,7 +5,6 @@
 #include "../../lib/common.h"
 #include <ncurses.h>
 
-#define MAX_THREAD_NUM 2
 #define MAX_TETROMINOES_NAME_LEN 16
 #define MAX_TETROMINOES_NUM 16
 
@@ -23,9 +22,9 @@ typedef struct{
     int map_width;
     int map_height;
     int color_index;
-#define MAX_SYMBOL_LEN 8
-    char symbol[MAX_SYMBOL_LEN];
-    char background[MAX_SYMBOL_LEN];
+#define MAX_SYMBOL_LEN 3
+    char symbol[MAX_SYMBOL_LEN+1];
+    char background[MAX_SYMBOL_LEN+1];
 }tetromino_t;
 
 typedef struct{
@@ -34,6 +33,7 @@ typedef struct{
     int game_window_width;
     int game_window_height;
 
+    int symbol_uniform_width;
     tetromino_t tetromino[MAX_TETROMINOES_NUM];
     int tetrominoes_num;
 }tetris_context_t;

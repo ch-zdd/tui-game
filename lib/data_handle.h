@@ -22,8 +22,8 @@ int count_digits(int number);
 
 char* file_to_string(const char* file_name);
 
-void trim_chars(char* str, const char* chars);
-void trim(char *str);
+char* trim_chars(char* str, const char* chars);
+char* trim(char *str);
 void remove_quotation_marks(char* str);
 bool is_all_digits(const char *str);
 bool is_float_num(const char *str);

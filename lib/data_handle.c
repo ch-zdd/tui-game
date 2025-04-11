@@ -254,10 +254,10 @@ READ_ERROR:
 }
 
 // 去除字符串中指定的字符，chars为要删除的字符集
-void trim_chars(char* str, const char* chars)
+char* trim_chars(char* str, const char* chars)
 {
     if (str == NULL || chars == NULL) {
-        return;
+        return NULL;
     }
 
     int len = strlen(str);
@@ -274,14 +274,16 @@ void trim_chars(char* str, const char* chars)
 
     // 终止字符串
     str[result_index] = '\0';
+
+    return str;
 }
 
 // 去除字符串首尾空格
-void trim(char *str)
+char* trim(char *str)
 {
 
     if(str == NULL){
-        return;
+        return str;
     }
 
     int start = 0; // 字符串开始位置
@@ -304,6 +306,8 @@ void trim(char *str)
     if (start > 0) {
         memmove(str, str + start, end - start + 2);
     }
+
+    return str;
 }
 
 // 去除字符串首尾的引号

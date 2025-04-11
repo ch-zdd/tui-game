@@ -6,6 +6,7 @@
 
 typedef struct timeval tg_utime_t;
 typedef struct {
+    char* name;
 #define TIMER_STOPPED 0
 #define TIMER_RUNNING 1
     int status;
@@ -18,7 +19,7 @@ char* tg_time_stamp(void);
 char* tg_high_precision_time_stamp(void);
 
 tg_utime_t tg_get_utime(void);
-tg_timer_t* tg_timer_create(tg_utime_t duration);
+tg_timer_t* tg_timer_create(tg_utime_t duration, const char* timer_name);
 void tg_timer_destroy(tg_timer_t* timer);
 
 int tg_timer_start(tg_timer_t* timer);

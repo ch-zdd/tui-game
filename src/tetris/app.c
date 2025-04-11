@@ -9,47 +9,63 @@
 #include "../../lib/tg_queue.h"
 #include "../../lib/tg_time.h"
 
+typedef struct{
+    bool task_is_running;
+    pthread_t task_id;
+    const char* task_name;
+    void* (*task_func)(void*);
+    void* task_data;
+}task_t;
+
+enum{
+    TASK_INPUT_LISTENER = 0,
+    MAX_TASK_NUM
+};
+
+enum{
+    MOVE_DOWN,
+    MOVE_LEFT,
+    MOVE_RIGHT,
+    MOVE_UP
+};
+
+void* handle_input(void* data);
+static task_t task_list[MAX_TASK_NUM] = {
+    {
+        .task_is_running = false,
+        .task_id = 0,
+        .task_name = "input_listener",
+        .task_func = handle_input,
+        .task_data = NULL
+    }
+};
+
 static struct{
-    struct {
-        struct{
-            pthread_t task_id;
-            bool is_running;
-        }detect_input, tetromino_down_timer;
-    }app_task;
+    bool game_is_running;
+    tui_tetromino_t tetromino;
+}game_context;
 
-    struct{
-        tg_timer_t* tetromino_down_timer;
-    }app_timer;
+pthread_mutex_t move_lock = PTHREAD_MUTEX_INITIALIZER;
 
-    struct{
-        queue_t* q_input_key;
-    }app_queue;
 
-    tui_game_screen_t* game_screen;
-    bool tetromino_down_flag;
-}Game_context;
 
-void game_ctx_init(void);
+task_t* get_task(int task_index)
+{
+    return &(task_list[task_index]);
+}
+
+int game_ctx_init(void);
+void game_ctx_final(void);
 
 int show_tetrominoe_for_debug(tetromino_t* tetromino, int num);
 void game_loop(void);
-tui_tetromino_t generate_tetrominoe(void);
 
-int handle_input(tui_tetromino_t* tetromino);
-void clear_input();
-int handle_tetromino_down(tui_tetromino_t* tetromino);
+int generate_tetrominoe(void);
+bool collision(int direction);
+int move_tetrominoe(int direction);
+int settlement(void);
 
-int reach_bottom(tui_tetromino_t tetromino);
-int settlement(tui_tetromino_t tetromino);
-
-int start_detect_input_task(void);
-int stop_detect_input_task(void);
-void *detect_input_task(void* arg);
-
-int start_tetromino_down_timer_task(void);
-int stop_tetromino_down_timer_task(void);
-void *tetromino_down_timer_task(void* arg);
-
+int start_task(int task_index);
 
 int app_run(void)
 {
@@ -60,29 +76,73 @@ int app_run(void)
         return TG_ERROR;
     }
 
-    if(TG_OK != game_screen_create(10, 10)){
+    if(TG_OK != game_ctx_init()){
         return TG_ERROR;
     }
 
-    game_ctx_init();
-
     game_loop();
 
-    game_screen_destroy();
     return TG_OK;
 }
 
 int app_stop()
 {
-    stop_detect_input_task();
-    stop_tetromino_down_timer_task();
+    game_context.game_is_running = false;
+    game_ctx_final();
+
     return TG_OK;
 }
 
-void game_ctx_init(void)
+int game_ctx_init(void)
 {
-    memset(&Game_context, 0, sizeof(Game_context));
-    Game_context.game_screen = get_game_screen();
+    // 初始化游戏板
+    tui_game_board_t *game_board = get_game_board();
+    int cell_width = get_app_context()->symbol_uniform_width;
+    tetris_window_para_t* game = &(get_windows_para()->game);
+
+    game_board->cell_width = cell_width;
+    game_board->height = game->scr_line;
+    game_board->width = game->scr_col/cell_width;
+    game_board->flags = (uint8_t*)tg_malloc(game_board->width*game_board->height*sizeof(uint8_t));
+    if(game_board->flags == NULL){
+        log_error("Failed to allocate memory for game board, %s", strerror(errno));
+        return TG_ERROR;
+    }
+    memset(game_board->flags, 0, game_board->width*game_board->height*sizeof(uint8_t));
+    int i = 0;
+    // 窗口边框与游戏版边重合
+    for(i = 0; i<game_board->height; i++){
+        game_board->flags[i*game_board->width] = 1;
+        game_board->flags[i*game_board->width+game_board->width-1] = 1;
+    }
+    for(i = 0; i<game_board->width; i++){
+        game_board->flags[i] = 1;
+        game_board->flags[(game_board->height-1)*game_board->width+i] = 1;
+    }
+    draw_border();
+
+    return TG_OK;
+}
+
+void game_ctx_final(void)
+{
+    int i = 0;
+    // 停止所有任务
+    for(i = 0; i<MAX_TASK_NUM; i++){
+        if(task_list[i].task_is_running){
+            pthread_cancel(task_list[i].task_id);
+            task_list[i].task_is_running = false;
+            pthread_join(task_list[i].task_id, NULL);
+        }
+        if(task_list[i].task_data != NULL){
+            tg_free(task_list[i].task_data);
+        }
+    }
+    // 清理游戏资源
+    tui_game_board_t *game_board = get_game_board();
+    if(game_board->flags != NULL){
+        tg_free(game_board->flags);
+    }
 }
 
 int show_tetrominoe_for_debug(tetromino_t* tetromino, int num)
@@ -99,71 +159,137 @@ int show_tetrominoe_for_debug(tetromino_t* tetromino, int num)
 
 void game_loop(void)
 {
-    tui_tetromino_t next_tetromino_index;
-    tui_tetromino_t current_tui_tetromino;
+    //方块下落初始间隔1000毫秒
+    int current_interval = 1000;
 
-    next_tetromino_index = generate_tetrominoe();
-    current_tui_tetromino = generate_tetrominoe();
+    game_context.game_is_running = true;
 
-    if(TG_OK != start_tetromino_down_timer_task()){
-        log_error("Start task of detecting input failed");
-        return;
-    }
-
-    if(TG_OK != start_detect_input_task()){
-        log_error("Start task of detecting input failed");
-        return;
-    }   
-
-    tg_timer_start(Game_context.app_timer.tetromino_down_timer);
+    start_task(TASK_INPUT_LISTENER);
+    generate_tetrominoe();
+    draw_tetromino(game_context.tetromino, false);
     
-    while(1){
-        tetromino_draw(current_tui_tetromino);
-        clear_input();
-
-        while(1){
-            //返回TG_DONE代表方块已经到达底部，无法再操作
-            if(TG_DONE == handle_input(&current_tui_tetromino)){
-                break;
-            }
-
-            if(TG_DONE == handle_tetromino_down(&current_tui_tetromino)){
-                break;
-            }
-        }
-
-        if(reach_bottom(current_tui_tetromino) == TG_OK){
-            settlement(current_tui_tetromino);
-            current_tui_tetromino = next_tetromino_index;
-            next_tetromino_index = generate_tetrominoe();
-        }
+    while(game_context.game_is_running){
+        usleep(current_interval*1000);
+        //与输入监控的任务互斥
+        pthread_mutex_lock(&move_lock);
+        log_debug("loop down");
+        move_tetrominoe(MOVE_DOWN);
+        pthread_mutex_unlock(&move_lock);
     }
 
 }
 
-tui_tetromino_t generate_tetrominoe(void)
+int generate_tetrominoe(void)
 {
     tui_tetromino_t tetromino;
     tetris_context_t* ctx = get_app_context();
     int index = rand() % ctx->tetrominoes_num;
-    tetromino.tetromino_index = index;
-    tetromino.x = Game_context.game_screen->width/2;
-    tetromino.y = 0;
-    tetromino.rotate = 0;
-    log_debug("Generate tetrominoe index: %d", index);
+    int tetromino_width = ctx->tetromino[index].map_width;
+    int tetromino_height = ctx->tetromino[index].map_height;
 
-    return tetromino;
+    tetromino.shape = ctx->tetromino[index];
+    tetromino.x = get_game_board()->width/2 - tetromino_width/2;
+    //tetromino.y = 0-tetromino_height;
+    tetromino.y = 2;
+    tetromino.rotate = 0;
+    log_debug("Generate tetrominoe %s", ctx->tetromino[index].name);
+
+    game_context.tetromino = tetromino;
+
+    return TG_OK;
 }
 
-int handle_input(tui_tetromino_t* tetromino)
+//在移动方块前调用
+int move_tetrominoe(int direction)
 {
-    int key = 0;
-    if(queue_is_empty(Game_context.app_queue.q_input_key)){
+    tui_tetromino_t* tui_tetromino = &game_context.tetromino;
+
+    // 碰撞检测
+    if(collision(direction)){
+        log_debug("Collision");
         return TG_OK;
     }
 
-    queue_pop(Game_context.app_queue.q_input_key, &key);
+    // 清理旧方块
+    draw_tetromino(*tui_tetromino, true);
 
+    // 移动方块
+    if(direction == MOVE_DOWN){
+        tui_tetromino->y++;
+    }else{
+        log_warn("Unknown direction");
+        return TG_ERROR;
+    }
+
+    //绘制新方块
+    draw_tetromino(*tui_tetromino, false);
+
+    return TG_OK;
+}
+
+bool collision(int direction)
+{
+    tui_tetromino_t temp_tetromino = game_context.tetromino;
+
+    // 判断移动后的位置是否超出游戏区域
+    if(direction == MOVE_DOWN){
+        temp_tetromino.y++;
+    }else if(direction == MOVE_LEFT){
+        temp_tetromino.x--;
+    }else if(direction == MOVE_RIGHT){
+        temp_tetromino.x++;
+    }else if (direction == MOVE_UP){
+        temp_tetromino.rotate++;   
+    }else{
+        log_error("Unknown direction %d", direction);
+        return true;
+    }
+    
+    tui_game_board_t *board = get_game_board();
+    tetromino_t shape = game_context.tetromino.shape;
+    int i = 0, j = 0;
+    for(i = 0; i<temp_tetromino.shape.map_height; i++){
+        // 对于位于游戏板上界 及 之上的部分不判断
+        if(temp_tetromino.y+i <= 1){
+            continue;
+        }
+        for(j = 0; j<temp_tetromino.shape.map_width; j++){
+            int board_flags_index = (temp_tetromino.y+i)*board->width + j; 
+            if((shape.map >> (i*shape.map_width+j)) & 0x01 && board->flags[board_flags_index] == 1){
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+int settlement(void)
+{
+    return TG_OK;
+}
+
+int start_task(int task_index)
+{
+    task_t* task = get_task(task_index);
+    task->task_is_running = true;
+    if(0 != pthread_create(&task->task_id, NULL, task->task_func, task->task_data)){
+        log_error("Failed to start task for [%s]", task->task_name);
+        return TG_ERROR;
+    }
+
+    return TG_OK;
+}
+
+void* handle_input(void* data)
+{
+    int key = 0;
+    task_t* task = get_task(TASK_INPUT_LISTENER);
+    while(task->task_is_running){
+        key = getch();
+        log_debug("key %d", key);
+    }
+    /*
     switch(key){
         case KEY_UP:
         case 'w':
@@ -203,148 +329,6 @@ int handle_input(tui_tetromino_t* tetromino)
             log_warn("Unknow key: %d", key);
             break;
     }
-
-    return TG_OK;
-}
-
-void clear_input()
-{
-    queue_clear(Game_context.app_queue.q_input_key);
-}
-
-int handle_tetromino_down(tui_tetromino_t* tetromino)
-{
-    if(Game_context.tetromino_down_flag){
-        Game_context.tetromino_down_flag = false;
-    }else{
-        return TG_OK;
-    }
-
-    if(tetromino->y >= Game_context.game_screen->height){
-        log_debug("Tetromino down reach bottom");
-        return TG_DONE;
-    }else{
-        log_debug("Tetromino auto down");
-        tetromino->y++;
-    }
-
-    return TG_OK;
-}
-
-int reach_bottom(tui_tetromino_t tetromino)
-{
-    return TG_OK;
-}
-
-int settlement(tui_tetromino_t tetromino)
-{
-    return TG_OK;
-}
-
-int start_detect_input_task(void)
-{
-    queue_t* q = queue_create(sizeof(int), 10);
-    if(q == NULL){
-        log_error("Failed to create queue");
-        return TG_ERROR;
-    }
-    Game_context.app_queue.q_input_key = q;
-
-    Game_context.app_task.detect_input.is_running = true;
-    if(0 != pthread_create(&Game_context.app_task.detect_input.task_id, NULL, detect_input_task, NULL)){
-        log_error("Failed to create thread for detecting input");
-        return TG_ERROR;
-    }
-
-    return TG_OK;
-}
-
-int stop_detect_input_task(void)
-{
-    Game_context.app_task.detect_input.is_running = false;
-    log_debug("Waiting for detect input task to stop...");
-    pthread_cancel(Game_context.app_task.detect_input.task_id);
-    pthread_join(Game_context.app_task.detect_input.task_id, NULL);
-    queue_destroy(Game_context.app_queue.q_input_key);
-    log_debug("Detect input task stopped successfully");
-
-    return TG_OK;
-}
-
-void *detect_input_task(void* arg)
-{
-    int key = 0;
-
-    while(Game_context.app_task.detect_input.is_running){
-        key = getch();
-        log_debug("Get key: %#x", key);
-        switch(key){
-            case KEY_UP:
-            case KEY_DOWN:
-            case KEY_LEFT:
-            case KEY_RIGHT:
-            case 'w':
-            case 's':
-            case 'a':
-            case 'd':
-            case '1':
-            case '2':
-            case '3':
-                if(queue_is_full(Game_context.app_queue.q_input_key)){
-                    log_warn("Input queue full");
-                    break;
-                }
-                queue_push(Game_context.app_queue.q_input_key, &key);
-                break;
-            default:
-                break;
-        }
-    }
-
-    return NULL;
-}
-
-int start_tetromino_down_timer_task(void)
-{
-    tg_utime_t timeout = {0, 1000*1000};
-    tg_timer_t* timer = tg_timer_create(timeout);
-    if(timer == NULL){
-        log_error("Failed to create tetromino down timer");
-        return TG_ERROR;
-    }
-    Game_context.app_timer.tetromino_down_timer = timer;
-
-    Game_context.app_task.tetromino_down_timer.is_running = true;
-    if(0 != pthread_create(&Game_context.app_task.detect_input.task_id, NULL, tetromino_down_timer_task, NULL)){
-        log_error("Failed to create thread for tetromino down timer");
-        return TG_ERROR;
-    }
-
-    return TG_OK;
-}
-
-int stop_tetromino_down_timer_task(void)
-{
-    Game_context.app_task.detect_input.is_running = false;
-    log_debug("Waiting for tetromino down timer task to stop...");
-    pthread_cancel(Game_context.app_task.detect_input.task_id);
-    pthread_join(Game_context.app_task.detect_input.task_id, NULL);
-    tg_timer_destroy(Game_context.app_timer.tetromino_down_timer);
-    log_debug("Tetromino down timer task stopped successfully");
-
-    return TG_OK;
-}
-
-void *tetromino_down_timer_task(void* arg)
-{
-    while(Game_context.app_task.tetromino_down_timer.is_running){
-        if(tg_timer_is_expired(Game_context.app_timer.tetromino_down_timer)){
-            Game_context.tetromino_down_flag = true;
-            log_debug("Tetromino down timer expired");
-            tg_timer_reset(Game_context.app_timer.tetromino_down_timer);
-        }
-        usleep(1000);
-    }
-
+    */
     return NULL;
 }

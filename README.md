@@ -1,4 +1,5 @@
 # 简介
+- 本项目只支持linux系统运行，目前只在ubuntu 22.04 下测试
 - 本项目实现几个利用ncurses库实现的纯文本游戏
 
 - ccz 参考三国志曹操传mod的文本游戏
@@ -16,7 +17,8 @@ tetris
 # 下亿步目标
 - 看新想法
 
-# 快速开始
+# 快速开始  
+*开始前检查是否安装了编译器，nucrses和cmake库*
 ```bash
 $ mkdir build && cd build
 $ cmake ..

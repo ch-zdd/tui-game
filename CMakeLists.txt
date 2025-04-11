@@ -15,7 +15,7 @@ add_compile_options(-Wall)
 
 
 # 添加lib目录下的源文件
-file(GLOB LIB_SOURCES "lib/*.c")
+#file(GLOB LIB_SOURCES "lib/*.c")
 
 # 添加子项目目录
 add_subdirectory(src/ccz)

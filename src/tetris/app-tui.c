@@ -4,45 +4,19 @@
 #include "app-tui.h"
 #include "../../lib/data_handle.h"
 
-tui_game_screen_t Game_screen;
 tetris_window_t Windows;
+tui_game_board_t game_board;
 
 tetris_window_t* get_windows_para(void)
 {
     return &Windows;
 }
 
-tui_game_screen_t* get_game_screen(void)
+tui_game_board_t* get_game_board(void)
 {
-    return &Game_screen;
+    return &game_board;
 }
 
-int game_screen_create(int width, int height)
-{
-    Game_screen.width = width;
-    Game_screen.x = 0;
-    Game_screen.height = height;
-    Game_screen.y = 0;
-    Game_screen.screen = (uint8_t*)tg_malloc(Game_screen.width*Game_screen.height*sizeof(uint8_t));
-    log_debug("Allocate memory for game screen, %d bytes", Game_screen.width*Game_screen.height*sizeof(uint8_t));
-    if(Game_screen.screen == NULL){
-        log_error("Failed to allocate memory for game screen, %s", strerror(errno));
-        return TG_ERROR;
-    }
-    memset(Game_screen.screen, 0, Game_screen.width*Game_screen.height*sizeof(uint8_t));
-
-    return TG_OK;
-}
-
-int game_screen_destroy(void)
-{
-    if(Game_screen.screen != NULL){
-        tg_free(Game_screen.screen);
-        Game_screen.screen = NULL;
-    }
-
-    return TG_OK;
-}
 
 int app_tui_init(void)
 {
@@ -83,7 +57,6 @@ int app_tui_init(void)
 
 int app_tui_final(void)
 {
-    game_screen_destroy();
     delwin(stdscr);
     tui_final();
 
@@ -131,18 +104,116 @@ int game_window_draw(void)
     wrefresh(stat->w);
     stat->active = true;
 
+    mvwprintw(game->w, game->scr_line/2, game->scr_col/2, "Pause...");
+    wrefresh(game->w);
     getch();
-    mvwprintw(game->w, game->scr_line/2, game->scr_col/2, "Game start...");
+    wclear(game->w);
+
+    return TG_OK;
+}
+
+int coord_to_scr(int x, int y, int* scr_x, int* scr_y)
+{
+    tui_game_board_t * board = get_game_board();
+
+    if(scr_x) *scr_x = x*board->cell_width;
+    if(scr_y) *scr_y = y;
+
+    return TG_OK;
+}
+
+int coord_to_game(int scr_x, int scr_y, int* x, int* y)
+{
+    tui_game_board_t * board = get_game_board();
+
+    if(x) *x = scr_x/board->cell_width;
+    if(y) *y = scr_y;
+
+    return TG_OK;
+}
+
+int draw_border(void)
+{
+    int i, scr_x, scr_y;
+    tui_game_board_t * board = get_game_board();
+    tetris_window_para_t* game = &Windows.game;
+
+    for(i = 0; i<board->height; i++){
+        if(board->flags[i*board->width] != 1 || board->flags[i*board->width+board->width-1] != 1){
+            log_warn("border of board error");
+        }
+        coord_to_scr(0, i, &scr_x, &scr_y);
+        mvwprintw(game->w, scr_y, scr_x, "%s", "* ");
+        coord_to_scr(board->width-1, i, &scr_x, &scr_y);
+        mvwprintw(game->w, scr_y, scr_x, "%s", "* ");
+    }
+    for(i = 0; i<board->width; i++){
+        if(board->flags[i] != 1 || board->flags[(board->height-1)*board->width+i] != 1){
+            log_warn("border of board error");
+        }
+        coord_to_scr(i, 0, &scr_x, &scr_y);
+        mvwprintw(game->w, scr_y, scr_x, "%s", "* ");
+        coord_to_scr(i, board->height-1, &scr_x, &scr_y);
+        mvwprintw(game->w, scr_y, scr_x, "%s", "* ");
+    }
+
+    return TG_OK;
+}
+
+int draw_board(void)
+{
+    int i, j, x, y;
+    tui_game_board_t * board = get_game_board();
+    tetris_window_para_t* game = &Windows.game;
+
+    for(i = 1; i < board->height-1; i++){
+        for(j = 1; j < board->width-1; j++){
+            coord_to_scr(j, i, &x, &y);
+            if(board->flags[i*board->width+j] == 1){
+                mvwprintw(game->w, y, x, "%s", board->symbol);
+            }else{
+                mvwprintw(game->w, y, x, "%s", board->bkg_symbol);
+            }
+        }
+    }
     wrefresh(game->w);
 
     return TG_OK;
 }
 
-int tetromino_draw(tui_tetromino_t tetromino)
+int draw_tetromino(tui_tetromino_t tetromino, bool is_clear)
 {
-    //int x = Game_screen.x + tetromino.x;
-    //int y = Game_screen.y + tetromino.y;
-    //int i = 0;
+    tetromino_t shape = tetromino.shape;
+    tetris_window_para_t* game = &Windows.game;
+    int i = 0;
+    int j = 0;
+    int x = tetromino.x;
+    int y = tetromino.y;
+    int x_scr, y_scr;
+
+    log_debug("draw tetromino");
+    for(i = 0; i < shape.map_height; i++){
+        // 边界外不显示
+        if(tetromino.y+i <= 1){
+            continue;
+        }
+
+        for(j = 0; j < shape.map_width; j++){           
+            coord_to_scr(x+j, y+i, &x_scr, &y_scr);
+
+            if((shape.map >> (i*shape.map_width+j)) & 0x01){
+                if(is_clear){
+                    // 用背景清除
+                    mvwprintw(game->w, y_scr, x_scr, "%s", shape.background);
+                }else{
+                    mvwprintw(game->w, y_scr, x_scr, "%s", shape.symbol);
+                }
+            }else{
+                // 游戏板背景统一
+            }
+        }
+    }
+    wrefresh(game->w);
     
     return TG_OK;
 }

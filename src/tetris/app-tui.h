@@ -29,31 +29,36 @@ typedef struct{
 }tetris_window_t;
 
 typedef struct{
-    int tetromino_index;
+    tetromino_t shape;
+    // 左上角为坐标原点，x和y为方块左上角的坐标
     int x;
     int y;
     int rotate;
 }tui_tetromino_t;
 
 typedef struct{
-    uint8_t* screen;
+    uint8_t* flags;
+    char symbol[MAX_SYMBOL_LEN+1];
+    char bkg_symbol[MAX_SYMBOL_LEN+1];
+    int cell_width;
     int width;
-    int x;
     int height;
-    int y;
-}tui_game_screen_t;
+}tui_game_board_t;
 
 extern scroll_t *tk_scroll;
 
 tetris_window_t* get_windows_para(void);
-tui_game_screen_t* get_game_screen(void);
-int game_screen_create(int width, int height);
-int game_screen_destroy(void);
+tui_game_board_t* get_game_board(void);
 
 int app_tui_init(void);
 int app_tui_final(void);
 
 int game_window_draw(void);
-int tetromino_draw(tui_tetromino_t tetromino);
+
+int coord_to_game(int scr_x, int scr_y, int* x, int* y);
+int coord_to_scr(int x, int y, int* scr_x, int* scr_y);
+int draw_border(void);
+int draw_board(void);
+int draw_tetromino(tui_tetromino_t tetromino, bool is_clear);
 
 #endif

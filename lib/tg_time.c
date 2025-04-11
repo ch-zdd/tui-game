@@ -1,5 +1,6 @@
 #include "common.h"
 #include "tg_time.h"
+#include "data_handle.h"
 
 /*
 功能： 获取当前日期和时间，用于表格的时间戳
@@ -53,14 +54,31 @@ tg_utime_t tg_get_utime(void)
     return res_utime;
 }
 
-tg_timer_t* tg_timer_create(tg_utime_t duration)
+tg_timer_t* tg_timer_create(tg_utime_t duration, const char* timer_name)
 {
+
     tg_timer_t* timer = tg_malloc(sizeof(tg_timer_t));
     if (timer == NULL) {
-        log_error("Failed to allocate memory for timer.");
+        log_error("Failed to allocate memory for timer %s.", timer_name == NULL ? NULL: timer_name);
         return NULL;
     }
 
+    if(timer_name != NULL && strlen(timer_name) != 0){
+        timer->name = tg_malloc(sizeof(timer_name));
+        if(timer->name == NULL) {
+            log_warn("Failed to allocate memory for timer's name %s.", timer_name == NULL ? NULL: timer_name);   
+        }else{
+            strcpy(timer->name, timer_name);
+        }
+    }else{
+        timer->name = tg_malloc(25-2);
+        if(timer->name == NULL) {
+            log_warn("Failed to allocate memory for timer's default name %s.", timer_name == NULL ? NULL: timer_name);   
+        }else{
+            snprintf(timer->name, 25-2, "NO.%s", trim_chars(tg_time_stamp(), ":"));
+        }
+    }
+    
     timer->status = TIMER_STOPPED;
     timer->duration.tv_usec = duration.tv_usec%1000000;
     timer->duration.tv_sec = duration.tv_sec + duration.tv_usec/1000000;
@@ -75,6 +93,10 @@ void tg_timer_destroy(tg_timer_t* timer)
     }
 
     tg_free(timer);
+
+    if(timer->name != NULL){
+        tg_free(timer->name);
+    }
 }
 
 int tg_timer_start(tg_timer_t* timer)
@@ -109,7 +131,7 @@ int tg_timer_reset(tg_timer_t* timer)
     }
 
     if(timer->status == TIMER_STOPPED){
-        log_debug("Timer is stopped");
+        log_debug("Timer %s is stopped");
         return TG_ERROR;
     }
 
