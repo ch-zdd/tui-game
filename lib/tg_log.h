@@ -7,7 +7,7 @@
 #define log_debug(format, ...) tg_log(__FILE__, __LINE__, LOG_LEVEL_DEBUG, format, ##__VA_ARGS__)
 #define log_warn(format, ...)  tg_log(__FILE__, __LINE__, LOG_LEVEL_WARN,  format, ##__VA_ARGS__)
 #define log_error(format, ...) tg_log(__FILE__, __LINE__, LOG_LEVEL_ERROR, format, ##__VA_ARGS__)
-#define log_text(format, ...)  tg_log_text(format"\n", ##__VA_ARGS__)
+#define log_text(format, ...)  tg_log_text(format, ##__VA_ARGS__)
 #define tg_print(format, ...)  fprintf(stderr, format"\n", ##__VA_ARGS__)
 
 #define TG_INDETION(str, n_spaces) \

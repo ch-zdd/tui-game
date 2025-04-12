@@ -3,25 +3,98 @@
 
 #include "app-tui.h"
 #include "../../lib/data_handle.h"
+#include "app.h"
 
-tetris_window_t Windows;
-tui_game_board_t game_board;
+#define CELL_SYMBOL_MAX_LEN 3
 
-tetris_window_t* get_windows_para(void)
+static tui_context_t tui_context;
+
+typedef struct{
+    int max_length;
+    int number;
+    #define MAX_SYMBOL_NUM 16
+    str_t symbol[MAX_SYMBOL_NUM];
+}cell_symbol_pool_t;
+
+static cell_symbol_pool_t cell_symbol_pool;
+
+tui_context_t* get_tui_context(void)
 {
-    return &Windows;
+    return &tui_context;
 }
 
-tui_game_board_t* get_game_board(void)
+void set_game_win_size(int h, int w)
 {
-    return &game_board;
+    get_tui_context()->game_window_height = h;
+    get_tui_context()->game_window_width = w;
 }
 
+// 初始化默认符号，main函数前执行防止意外错误
+__attribute__((constructor)) void init_cell_symbol_pool(void)
+{
+    memset(&cell_symbol_pool, 0, sizeof(cell_symbol_pool));
+    cell_symbol_pool.max_length = CELL_SYMBOL_MAX_LEN;
+    cell_symbol_pool.number = 0;
+
+    // 固定第一个是默认背景色，第二个为默认前景色，
+    // 即index = 0 是背景，与某些变量初始化为0有关系，可以修改符号但不能随意索引值
+    add_cell_symbol("  ");
+    add_cell_symbol("()");
+}
+
+int add_cell_symbol(const char* symbol)
+{
+    // 首先去重
+    int i;
+    for(i = 0; i< cell_symbol_pool.number; i++){
+        if(strcmp(symbol, cell_symbol_pool.symbol[i].str) == 0){
+            log_debug("Symbol[%s] already exists", symbol);
+            return i;
+        }
+    }
+
+    size_t len = strlen(symbol);
+
+    if(cell_symbol_pool.max_length < len){
+        log_warn("Invalid symbol[%s], use default symbol", symbol);
+        return 0;
+    }
+
+    str_t* cell_symbol = &cell_symbol_pool.symbol[cell_symbol_pool.number];
+    if(chars_to_string(symbol, cell_symbol) == TG_ERROR){
+        free_string(cell_symbol);
+        return TG_ERROR;
+    }
+
+    cell_symbol_pool.number++;
+
+    return cell_symbol_pool.number-1;
+}
+
+str_t* get_cell_symbol(int index)
+{
+    if(index < 0 || index >= cell_symbol_pool.number){
+        log_warn("Invalid index[%d], use default symbol", index);
+        // 防止返回NULL
+        return &cell_symbol_pool.symbol[0];
+    }
+
+    return &cell_symbol_pool.symbol[index];
+}
 
 int app_tui_init(void)
 {
     tui_init();
-    tetris_window_t* tui = &Windows;
+
+    get_tui_context()->cell_width = CELL_SYMBOL_MAX_LEN;
+    tetris_window_t* tui = &get_tui_context()->window;
+
+    if(get_tui_context()->game_window_height == 0){
+        get_tui_context()->game_window_height = DEFAULT_WINDOW_HEIGHT;
+    }
+    if(get_tui_context()->game_window_width == 0){
+        get_tui_context()->game_window_width = DEFAULT_WINDOW_WIDTH;
+    }
 
     getmaxyx(stdscr, tui->main.scr_line, tui->main.scr_col);
     if(tui->main.scr_line < 16 || tui->main.scr_col < 70){
@@ -29,13 +102,14 @@ int app_tui_init(void)
         getch();
         return TG_ERROR;
     }
-    if(tui->main.scr_col < get_app_context()->game_window_width*2){
+    
+    if(tui->main.scr_col < get_tui_context()->game_window_width*2){
         printw("screen size(line:%d, at least 16; column:%d, at least twice the width of the game window %d) too small, press any key to exit...", 
-            tui->main.scr_line, tui->main.scr_col, get_app_context()->game_window_width*2);
+            tui->main.scr_line, tui->main.scr_col, get_tui_context()->game_window_width*2);
         getch();
         return TG_ERROR;
     }
-    
+
     tui->main.active = true;
     tui->main.w = stdscr;
     if(stdscr == NULL){
@@ -43,40 +117,87 @@ int app_tui_init(void)
         log_error("Failed to init stdscr");
         return TG_ERROR;
     }
-    strncpy(tui->main.store_path, "main_window.scr", sizeof(tui->main.store_path));
+    strncpy(tui->main.store_path, "bk_main.scr", sizeof(tui->main.store_path));
 
     tui->info.active = false;
     tui->statistics.active = false;
     tui->game.active = false;
-    strncpy(tui->game.store_path, "battle_report.scr", sizeof(tui->main.store_path));
-    strncpy(tui->info.store_path, "battler_info.scr", sizeof(tui->main.store_path));
-    strncpy(tui->statistics.store_path, "battle.scr", sizeof(tui->main.store_path));
+    strncpy(tui->game.store_path, "bk_game.scr", sizeof(tui->main.store_path));
+    strncpy(tui->info.store_path, "bk_info.scr", sizeof(tui->main.store_path));
+    strncpy(tui->statistics.store_path, "bk_statics.scr", sizeof(tui->main.store_path));
 
     return TG_OK;
 }
 
 int app_tui_final(void)
 {
-    delwin(stdscr);
     tui_final();
+    int i = 0;
+    
+    // 释放符号池
+    for(i = 0; i<cell_symbol_pool.number; i++){
+        free_string(&cell_symbol_pool.symbol[i]);
+    }
+    cell_symbol_pool.number = 0;
 
     return TG_OK;
 }
 
+int show_shape_for_debug(shape_t* shape, int num)
+{
+    log_debug("Load tetromino num: %d", num);
+    for(int i = 0; i< num; i++){
+        log_text("Tetromino name[%s] map[%d] type[%s] symbol[%s] color[%s]\n", 
+            shape[i].name, shape[i].map, shape_type_to_string(shape[i].type), get_cell_symbol(shape[i].symbol_index)->str, color_to_string(shape[i].color_index));
+        log_text("%s\n", shape_to_string(shape[i]));
+    }
+
+    return TG_OK;
+}
+
+char* shape_to_string(shape_t shape)
+{
+    static char buff[1024];
+    
+    memset(buff, 0, sizeof(buff));
+
+    for(int i = 0; i < shape.map_height; i++){
+        for(int j = 0; j < shape.map_width; j++){
+            if((shape.map >> (i*shape.map_width+j)) & 0x01){
+                snprintf(buff+strlen(buff), sizeof(buff)-strlen(buff), "%s", get_cell_symbol(shape.symbol_index)->str);
+            }else{
+                snprintf(buff+strlen(buff), sizeof(buff)-strlen(buff), "%s", BACKGROUND_DEFAULT->str);
+            }
+            
+        }
+        snprintf(buff+strlen(buff), sizeof(buff)-strlen(buff), "\n");
+    }
+
+    return buff;
+}
+
 int game_window_draw(void)
 {
-    tetris_window_para_t* main = &Windows.main;
-    tetris_window_para_t* info = &Windows.info;
-    tetris_window_para_t* stat = &Windows.statistics;
-    tetris_window_para_t* game = &Windows.game;
+    tetris_window_t* tui = &get_tui_context()->window;
+    tetris_window_para_t* main = &tui->main;
+    tetris_window_para_t* info = &tui->info;
+    tetris_window_para_t* stat = &tui->statistics;
+    tetris_window_para_t* game = &tui->game;
 
     if(main->active == false){
         log_error("ERROR: tui is not initialized");
         return TG_ERROR;
     }
 
-    game->scr_line = get_app_context()->game_window_height;
-    game->scr_col = get_app_context()->game_window_width;
+    if(get_tui_context()->game_window_height > main->scr_line){
+        log_error("ERROR: screen size(%d) too small, at least %d", main->scr_line, get_tui_context()->game_window_height);
+    }
+    if(get_tui_context()->game_window_width*2 > main->scr_col){
+        log_error("ERROR: screen size(%d) too small, at least %d", main->scr_col, get_tui_context()->game_window_width*2);
+    }
+
+    game->scr_line = get_tui_context()->game_window_height;
+    game->scr_col = get_tui_context()->game_window_width;
 
     info->scr_line = main->scr_line/2;
     info->scr_col = main->scr_col-game->scr_col;
@@ -114,9 +235,7 @@ int game_window_draw(void)
 
 int coord_to_scr(int x, int y, int* scr_x, int* scr_y)
 {
-    tui_game_board_t * board = get_game_board();
-
-    if(scr_x) *scr_x = x*board->cell_width;
+    if(scr_x) *scr_x = x*get_tui_context()->cell_width;
     if(scr_y) *scr_y = y;
 
     return TG_OK;
@@ -124,77 +243,85 @@ int coord_to_scr(int x, int y, int* scr_x, int* scr_y)
 
 int coord_to_game(int scr_x, int scr_y, int* x, int* y)
 {
-    tui_game_board_t * board = get_game_board();
-
-    if(x) *x = scr_x/board->cell_width;
+    if(x) *x = scr_x/get_tui_context()->cell_width;
     if(y) *y = scr_y;
 
     return TG_OK;
 }
 
-int draw_border(void)
+int draw_border(game_board_t* board)
 {
     int i, scr_x, scr_y;
-    tui_game_board_t * board = get_game_board();
-    tetris_window_para_t* game = &Windows.game;
+    tetris_window_para_t* game = &get_tui_context()->window.game;
+    str_t* symbol = FOREGGROUND_DEFAULT;
 
     for(i = 0; i<board->height; i++){
-        if(board->flags[i*board->width] != 1 || board->flags[i*board->width+board->width-1] != 1){
+        if(board->cell[i*board->width].presence != 1 || board->cell[i*board->width+board->width-1].presence != 1){
             log_warn("border of board error");
         }
         coord_to_scr(0, i, &scr_x, &scr_y);
-        mvwprintw(game->w, scr_y, scr_x, "%s", "* ");
+        mvwprintw(game->w, scr_y, scr_x, "%s", symbol->str);
         coord_to_scr(board->width-1, i, &scr_x, &scr_y);
-        mvwprintw(game->w, scr_y, scr_x, "%s", "* ");
+        mvwprintw(game->w, scr_y, scr_x, "%s", symbol->str);
     }
     for(i = 0; i<board->width; i++){
-        if(board->flags[i] != 1 || board->flags[(board->height-1)*board->width+i] != 1){
+        if(board->cell[i].presence != 1 || board->cell[(board->height-1)*board->width+i].presence != 1){
             log_warn("border of board error");
         }
         coord_to_scr(i, 0, &scr_x, &scr_y);
-        mvwprintw(game->w, scr_y, scr_x, "%s", "* ");
+        mvwprintw(game->w, scr_y, scr_x, "%s", symbol->str);
         coord_to_scr(i, board->height-1, &scr_x, &scr_y);
-        mvwprintw(game->w, scr_y, scr_x, "%s", "* ");
+        mvwprintw(game->w, scr_y, scr_x, "%s", symbol->str);
     }
 
     return TG_OK;
 }
 
-int draw_board(void)
+int draw_board(game_board_t* board)
 {
     int i, j, x, y;
-    tui_game_board_t * board = get_game_board();
-    tetris_window_para_t* game = &Windows.game;
+    tetris_window_para_t* game = &get_tui_context()->window.game;
+    board_cell_t cell;
+    str_t* frg_symbol;
+    str_t* bkg_symbol;
 
+    //wclrzone(game->w, board->height-2, (board->width-2)* board->cell_width, 1, board->cell_width);
+    //wrefresh(game->w);
     for(i = 1; i < board->height-1; i++){
         for(j = 1; j < board->width-1; j++){
             coord_to_scr(j, i, &x, &y);
-            if(board->flags[i*board->width+j] == 1){
-                mvwprintw(game->w, y, x, "%s", board->symbol);
+            cell = board->cell[i*board->width+j];
+            frg_symbol = get_cell_symbol(cell.Foreground_index);
+            bkg_symbol = get_cell_symbol(cell.background_index);
+            if(cell.presence == 1){
+                mvwprintw(game->w, y, x, "%s", frg_symbol->str);
             }else{
-                mvwprintw(game->w, y, x, "%s", board->bkg_symbol);
+                mvwprintw(game->w, y, x, "%s", bkg_symbol->str);
             }
         }
+        log_text("\n");
     }
     wrefresh(game->w);
 
     return TG_OK;
 }
 
-int draw_tetromino(tui_tetromino_t tetromino, bool is_clear)
+int draw_tetromino(tetromino_t tetromino, bool is_clear)
 {
-    tetromino_t shape = tetromino.shape;
-    tetris_window_para_t* game = &Windows.game;
+    shape_t shape = get_tui_context()->shape[tetromino.shape_index];
+    tetris_window_para_t* game = &get_tui_context()->window.game;
     int i = 0;
     int j = 0;
     int x = tetromino.x;
     int y = tetromino.y;
     int x_scr, y_scr;
+    str_t* symbol = get_cell_symbol(shape.symbol_index);
+    str_t* bkg_symbol = BACKGROUND_DEFAULT;
 
     log_debug("draw tetromino");
     for(i = 0; i < shape.map_height; i++){
         // 边界外不显示
-        if(tetromino.y+i <= 1){
+        if(tetromino.y+i <= 0){
             continue;
         }
 
@@ -204,9 +331,9 @@ int draw_tetromino(tui_tetromino_t tetromino, bool is_clear)
             if((shape.map >> (i*shape.map_width+j)) & 0x01){
                 if(is_clear){
                     // 用背景清除
-                    mvwprintw(game->w, y_scr, x_scr, "%s", shape.background);
+                    mvwprintw(game->w, y_scr, x_scr, "%s", bkg_symbol->str);
                 }else{
-                    mvwprintw(game->w, y_scr, x_scr, "%s", shape.symbol);
+                    mvwprintw(game->w, y_scr, x_scr, "%s", symbol->str);
                 }
             }else{
                 // 游戏板背景统一

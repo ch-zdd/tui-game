@@ -17,6 +17,9 @@ typedef struct{
     int number;
 }element_para_t;
 
+int chars_to_string(const char* chars, str_t* str);
+int free_string(str_t* str);
+
 int count_char(const char* str, char ch);
 int count_digits(int number);
 

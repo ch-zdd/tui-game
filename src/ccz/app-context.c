@@ -86,7 +86,7 @@ int load_app_cfg(const char* cfg_path)
         context.battle_window_width = 48;
     }
 
-    free(cfg_str);
+    tg_free(cfg_str);
     return TG_OK;
 }
 

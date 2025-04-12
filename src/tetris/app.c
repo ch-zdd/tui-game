@@ -42,22 +42,27 @@ static task_t task_list[MAX_TASK_NUM] = {
 
 static struct{
     bool game_is_running;
-    tui_tetromino_t tetromino;
+    game_board_t game_board;
+    tetromino_t current_tetromino;
 }game_context;
 
 pthread_mutex_t move_lock = PTHREAD_MUTEX_INITIALIZER;
-
-
 
 task_t* get_task(int task_index)
 {
     return &(task_list[task_index]);
 }
 
+
+game_board_t* get_game_board(void)
+{
+    return &game_context.game_board;
+}
+
+
 int game_ctx_init(void);
 void game_ctx_final(void);
 
-int show_tetrominoe_for_debug(tetromino_t* tetromino, int num);
 void game_loop(void);
 
 int generate_tetrominoe(void);
@@ -69,8 +74,8 @@ int start_task(int task_index);
 
 int app_run(void)
 {
-    tetris_context_t* ctx = get_app_context();
-    show_tetrominoe_for_debug(ctx->tetromino, ctx->tetrominoes_num);
+    tui_context_t* ctx = get_tui_context();
+    show_shape_for_debug(ctx->shape, ctx->shape_num);
 
     if(TG_OK != game_window_draw()){
         return TG_ERROR;
@@ -96,30 +101,28 @@ int app_stop()
 int game_ctx_init(void)
 {
     // 初始化游戏板
-    tui_game_board_t *game_board = get_game_board();
-    int cell_width = get_app_context()->symbol_uniform_width;
-    tetris_window_para_t* game = &(get_windows_para()->game);
+    game_board_t *game_board = get_game_board();
+    memset(game_board, 0, sizeof(game_board_t));
 
-    game_board->cell_width = cell_width;
-    game_board->height = game->scr_line;
-    game_board->width = game->scr_col/cell_width;
-    game_board->flags = (uint8_t*)tg_malloc(game_board->width*game_board->height*sizeof(uint8_t));
-    if(game_board->flags == NULL){
+    game_board->height = get_tui_context()->game_window_height;
+    game_board->width = get_tui_context()->game_window_width / get_tui_context()->cell_width;
+    game_board->cell = (board_cell_t*)tg_malloc(game_board->width*game_board->height*sizeof(board_cell_t));
+    if(game_board->cell == NULL){
         log_error("Failed to allocate memory for game board, %s", strerror(errno));
         return TG_ERROR;
     }
-    memset(game_board->flags, 0, game_board->width*game_board->height*sizeof(uint8_t));
+    memset(game_board->cell, 0, game_board->width*game_board->height*sizeof(board_cell_t));
     int i = 0;
-    // 窗口边框与游戏版边重合
+    // 窗口边框与游戏版边重合, 板边默认符号无需专门设置
     for(i = 0; i<game_board->height; i++){
-        game_board->flags[i*game_board->width] = 1;
-        game_board->flags[i*game_board->width+game_board->width-1] = 1;
+        game_board->cell[i*game_board->width].presence = 1;
+        game_board->cell[i*game_board->width+game_board->width-1].presence = 1;
     }
     for(i = 0; i<game_board->width; i++){
-        game_board->flags[i] = 1;
-        game_board->flags[(game_board->height-1)*game_board->width+i] = 1;
+        game_board->cell[i].presence = 1;
+        game_board->cell[(game_board->height-1)*game_board->width+i].presence = 1;
     }
-    draw_border();
+    draw_border(game_board);
 
     return TG_OK;
 }
@@ -139,22 +142,10 @@ void game_ctx_final(void)
         }
     }
     // 清理游戏资源
-    tui_game_board_t *game_board = get_game_board();
-    if(game_board->flags != NULL){
-        tg_free(game_board->flags);
+    game_board_t *game_board = get_game_board();
+    if(game_board->cell != NULL){
+        tg_free(game_board->cell);
     }
-}
-
-int show_tetrominoe_for_debug(tetromino_t* tetromino, int num)
-{
-    log_debug("Load tetromino num: %d", num);
-    for(int i = 0; i< num; i++){
-        log_text("Tetromino name[%s] map[%d] type[%s] symbol[%s] bk[%s] color[%s]", 
-            tetromino[i].name, tetromino[i].map, tetromino_type_to_string(tetromino[i].type), tetromino[i].symbol, tetromino[i].background, color_to_string(tetromino[i].color_index));
-        log_text("%s", tetromino_to_string(tetromino[i]));
-    }
-
-    return TG_OK;
 }
 
 void game_loop(void)
@@ -166,7 +157,7 @@ void game_loop(void)
 
     start_task(TASK_INPUT_LISTENER);
     generate_tetrominoe();
-    draw_tetromino(game_context.tetromino, false);
+    draw_tetromino(game_context.current_tetromino, false);
     
     while(game_context.game_is_running){
         usleep(current_interval*1000);
@@ -181,20 +172,20 @@ void game_loop(void)
 
 int generate_tetrominoe(void)
 {
-    tui_tetromino_t tetromino;
-    tetris_context_t* ctx = get_app_context();
-    int index = rand() % ctx->tetrominoes_num;
-    int tetromino_width = ctx->tetromino[index].map_width;
-    int tetromino_height = ctx->tetromino[index].map_height;
+    tetromino_t tetromino;
+    tui_context_t* ctx = get_tui_context();
+    int index = rand() % ctx->shape_num;
+    int tetromino_width = ctx->shape[index].map_width;
 
-    tetromino.shape = ctx->tetromino[index];
+    tetromino.shape_index = index;
+
     tetromino.x = get_game_board()->width/2 - tetromino_width/2;
-    //tetromino.y = 0-tetromino_height;
-    tetromino.y = 2;
+    // 简化游戏逻辑，出生地限制在游戏板内
+    tetromino.y = 1;
     tetromino.rotate = 0;
-    log_debug("Generate tetrominoe %s", ctx->tetromino[index].name);
+    log_debug("Generate tetrominoe %s", ctx->shape[index].name);
 
-    game_context.tetromino = tetromino;
+    game_context.current_tetromino = tetromino;
 
     return TG_OK;
 }
@@ -202,7 +193,7 @@ int generate_tetrominoe(void)
 //在移动方块前调用
 int move_tetrominoe(int direction)
 {
-    tui_tetromino_t* tui_tetromino = &game_context.tetromino;
+    tetromino_t* tetromino = &game_context.current_tetromino;
 
     // 碰撞检测
     if(collision(direction)){
@@ -210,36 +201,38 @@ int move_tetrominoe(int direction)
         if(direction == MOVE_DOWN){
             settlement();
             generate_tetrominoe();
+            // 绘制新方块
+            draw_tetromino(game_context.current_tetromino, false);
         }
         return TG_OK;
     }
 
     // 清理旧方块
-    draw_tetromino(*tui_tetromino, true);
+    draw_tetromino(*tetromino, true);
 
     // 移动方块
     if(direction == MOVE_DOWN){
-        tui_tetromino->y++;
+        tetromino->y++;
     }else if(direction == MOVE_LEFT){
-        tui_tetromino->x--;
+        tetromino->x--;
     }else if(direction == MOVE_RIGHT){
-        tui_tetromino->x++;
+        tetromino->x++;
     }else if (direction == MOVE_UP){
-        tui_tetromino->rotate++;  
+        tetromino->rotate++;  
     }else{
         log_warn("Unknown direction");
         return TG_ERROR;
     }
 
     //绘制新方块
-    draw_tetromino(*tui_tetromino, false);
+    draw_tetromino(*tetromino, false);
 
     return TG_OK;
 }
 
 bool collision(int direction)
 {
-    tui_tetromino_t temp_tetromino = game_context.tetromino;
+    tetromino_t temp_tetromino = game_context.current_tetromino;
 
     // 判断移动后的位置是否超出游戏区域
     if(direction == MOVE_DOWN){
@@ -255,18 +248,14 @@ bool collision(int direction)
         return true;
     }
     
-    tui_game_board_t *board = get_game_board();
-    tetromino_t shape = game_context.tetromino.shape;
+    game_board_t *board = get_game_board();
+    // todo: shape的值需要考虑旋转变量rotate
+    shape_t shape = get_tui_context()->shape[temp_tetromino.shape_index];
     int i = 0, j = 0;
-    for(i = 0; i<temp_tetromino.shape.map_height; i++){
-        // 对于位于游戏板上界 及 之上的部分不判断
-        if(temp_tetromino.y+i <= 1){
-            continue;
-        }
-        for(j = 0; j<temp_tetromino.shape.map_width; j++){
+    for(i = 0; i<shape.map_height; i++){
+        for(j = 0; j<shape.map_width; j++){
             int board_flags_index = (temp_tetromino.y+i)*board->width + temp_tetromino.x + j; 
-            log_debug("board_flags_index %d, y %d, i %d, j %d, ", board_flags_index, temp_tetromino.y, i, j);
-            if((shape.map >> (i*shape.map_width+j)) & 0x01 && board->flags[board_flags_index] == 1){
+            if((shape.map >> (i*shape.map_width+j)) & 0x01 && board->cell[board_flags_index].presence == 1){
                 return true;
             }
         }
@@ -277,6 +266,47 @@ bool collision(int direction)
 
 int settlement(void)
 {
+    game_board_t *board = get_game_board();
+    tetromino_t tetromino = game_context.current_tetromino;
+    // todo: shape的值需要考虑旋转变量rotate
+    shape_t shape = get_tui_context()->shape[tetromino.shape_index];
+    int i = 0, j = 0;
+
+    // 先合并方块到游戏板
+    for(i = 0; i<shape.map_height; i++){
+        for(j = 0; j<shape.map_width; j++){
+            if((shape.map >> (i*shape.map_width+j)) & 0x01){
+                // 不考虑异常情况下导致的方块和游戏板重合
+                int board_flags_index = (tetromino.y+i)*board->width + tetromino.x + j; 
+                board->cell[board_flags_index].presence = 1;
+                board->cell[board_flags_index].Foreground_index = shape.symbol_index;
+            }
+        }
+    }
+
+    // 判断本行是否填满
+    for(i = 1; i<board->height-1; i++){
+        for(j = 1; j<board->width-1; j++){
+            if(board->cell[i*board->width+j].presence == 0){
+                break;
+            }
+        }
+
+        // 提前跳出，本行有空的列
+        if(j != board->width-1){
+            continue;
+        }
+    
+        log_debug("Full line %d", i);
+        // 下移上边所有行的数据
+        // 边界肯定为1，是否复制无影响
+        memmove(&board->cell[2*board->width], &board->cell[1*board->width], board->width*(i - 1)*sizeof(board_cell_t));
+        
+        // todo: 计分
+    }
+    // 刷新界面
+    draw_board(board);
+
     return TG_OK;
 }
 

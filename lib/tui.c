@@ -78,6 +78,7 @@ const char* color_to_string(int index)
 
 void tui_final()
 {
+    delwin(stdscr);
     endwin();
 }
 

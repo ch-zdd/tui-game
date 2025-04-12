@@ -7,19 +7,18 @@
 
 #define MAX_KEY_VALUE_LEN 1024
 
-static tetris_context_t context;
+static app_context_t context;
 
-int parse_tetrominoe(tetromino_t* tetromino, const char* tetrominoes_str);
-int parse_tetromino_map(const char* map_str, int* map, int* map_width, int* map_height);
-int parse_tetrominoe_common_attr(const char* common_str);
+int parse_shape(shape_t* shape, const char* shape_str);
+int parse_shape_map(const char* map_str, int* map, int* map_width, int* map_height);
+int parse_shape_common_attr(const char* common_str);
 
 void init_app_context(void)
 {
-    memset(&context, 0, sizeof(tetris_context_t));
-    context.game_window_width = 48;
+    memset(&context, 0, sizeof(app_context_t));
 }
 
-tetris_context_t* get_app_context(void)
+app_context_t* get_app_context(void)
 {
     return &context;
 }
@@ -38,6 +37,8 @@ int set_cfg_path(const char* path)
 
 int parse_app_cfg(const char* cfg_path)
 {
+    int game_witdh = 0;
+    int game_height = 0;
     char buffer[1024] = {};
     char* cfg_str = file_to_string(cfg_path);
     if(cfg_str == NULL) {
@@ -70,21 +71,22 @@ int parse_app_cfg(const char* cfg_path)
             log_error("Invalid battle window width");
             return TG_ERROR;
         }
-        context.game_window_width = atoi(buffer)/2*2;
+        game_witdh = atoi(buffer)/2*2;
     }else{
-        context.game_window_width = DEFAULT_WINDOW_WIDTH;
+        game_witdh = DEFAULT_WINDOW_WIDTH;
     }
     if(parse_key_value(cfg_str, "game_window_height", buffer, 1024) == TG_OK){
         if(atoi(buffer)<=0){
             log_error("Invalid battle window height");
             return TG_ERROR;
         }
-        context.game_window_height = atoi(buffer) > get_windows_para()->main.scr_line ? get_windows_para()->main.scr_line : atoi(buffer);
+        game_height = atoi(buffer);
     }else{
-        context.game_window_height = DEFAULT_WINDOW_HEIGHT > get_windows_para()->main.scr_line ? get_windows_para()->main.scr_line : DEFAULT_WINDOW_HEIGHT;
+        game_height = DEFAULT_WINDOW_HEIGHT;
     }
 
-    log_info("game window: %d * %d", context.game_window_width, context.game_window_height);
+    log_info("set game window: %d * %d", game_witdh, game_height);
+    set_game_win_size(game_height, game_witdh);
 
     tg_free(cfg_str);
     return TG_OK;
@@ -104,7 +106,8 @@ int set_game_cfg_path(const char* path)
 
 int parse_game_cfg(void)
 {
-    tetris_context_t* ctx = &context;
+    tui_context_t* tui_ctx = get_tui_context();
+    app_context_t* ctx = get_app_context();
     const char* p = NULL;
     int count = 0;
 
@@ -126,39 +129,39 @@ int parse_game_cfg(void)
     //从配置文件读取不同的方块属性
     while(1){
         if(count >= MAX_TETROMINOES_NUM){
-            log_warn("Too many tetromino, only load %d", MAX_TETROMINOES_NUM);
+            log_warn("Too many shape, only load %d", MAX_TETROMINOES_NUM);
             break;
         }
 
         memset(buffer, 0, MAX_ELEMENTS_SIZE);
-        p = parse_cfg_label(p, "@tetromino", buffer);
+        p = parse_cfg_label(p, "@shape", buffer);
         if(p == NULL){
-            log_debug("No more tetromino to load, count = %d", count);
+            log_debug("No more shape to load, count = %d", count);
             break;
         }
  
-        if(parse_tetrominoe(&(ctx->tetromino[count]), buffer) != TG_OK){
-            log_warn("Parse tetromino failed");
-            log_text("tetromino=>\n%s\n", buffer);
+        if(parse_shape(&(tui_ctx->shape[count]), buffer) != TG_OK){
+            log_warn("Parse shape failed");
+            log_text("shape=>\n%s\n", buffer);
             continue;
         }
         count++;
     }
-    ctx->tetrominoes_num = count;
+    tui_ctx->shape_num = count;
     if(count == 0){
-        log_error("No tetromino loaded");
+        log_error("No shape loaded");
         goto read_error;
     }
 
     //加载方块的共同设定
-    log_info("load tetromino common setting");
+    log_info("load shape common setting");
     memset(buffer, 0, MAX_ELEMENTS_SIZE);
-    if(NULL == parse_cfg_label(game_cfg_str, "@tetrominoes_common_attr", buffer)){
+    if(NULL == parse_cfg_label(game_cfg_str, "@shape_common_attr", buffer)){
         log_error("No role common setting label found");
         goto read_error;
     }
 
-    if(TG_OK != parse_tetrominoe_common_attr(buffer)){
+    if(TG_OK != parse_shape_common_attr(buffer)){
         log_error("load role common setting context failed");
         goto read_error;
     }
@@ -172,28 +175,29 @@ read_error:
     return TG_ERROR;
 }
 
-int parse_tetrominoe(tetromino_t* tetromino, const char* tetrominoes_str)
+int parse_shape(shape_t* shape, const char* shape_str)
 {
     char buffer[MAX_ELEMENTS_SIZE] = "";
-    const char* p = tetrominoes_str;
+    const char* p = shape_str;
+
     if(parse_key_value(p, "name", buffer, MAX_ELEMENTS_SIZE) != TG_OK){
         log_error("No name found");
-        strncpy(tetromino->name, "NONE", MAX_TETROMINOES_NAME_LEN);
+        strncpy(shape->name, "NONE", MAX_TETROMINOES_NAME_LEN);
     }else{
-        strncpy(tetromino->name, buffer, MAX_TETROMINOES_NAME_LEN);
+        strncpy(shape->name, buffer, MAX_TETROMINOES_NAME_LEN);
     }
     
 
     if(parse_key_value(p, "type", buffer, MAX_ELEMENTS_SIZE) != TG_OK){
         log_error("No type found");
-        tetromino->type = TETROMINO_TYPE_NORMAL;
+        shape->type = SHAPE_TYPE_NORMAL;
     }else{
-        int type = tetromino_type_to_int(buffer);
-        if(type == TETROMINO_TYPE_NONE){
+        int type = shape_type_to_int(buffer);
+        if(type == SHAPE_TYPE_NONE){
             log_error("Invalid type %s", buffer);
-            tetromino->type = TETROMINO_TYPE_NORMAL;
+            shape->type = SHAPE_TYPE_NORMAL;
         }else{
-            tetromino->type = type;
+            shape->type = type;
         }
     }
 
@@ -201,75 +205,66 @@ int parse_tetrominoe(tetromino_t* tetromino, const char* tetrominoes_str)
         log_error("No map found");
         return TG_ERROR;
     }
-    if(TG_OK != parse_tetromino_map(buffer, &(tetromino->map), &(tetromino->map_width), &(tetromino->map_height))){
+    if(TG_OK != parse_shape_map(buffer, &(shape->map), &(shape->map_width), &(shape->map_height))){
         log_error("Invalid map %s", buffer);
         return TG_ERROR;
     }
 
     //以下为可选项
-
     if(parse_key_value(p, "symbol", buffer, MAX_ELEMENTS_SIZE) != TG_OK){
-        log_debug("Use common symbol for tetromino %s", tetromino->name);
-        memset(tetromino->symbol, 0, MAX_SYMBOL_LEN);
+        log_debug("Use common symbol for shape %s", shape->name);
+        shape->symbol_index = -1;
     }else{
         remove_quotation_marks(buffer);
-        strncpy(tetromino->symbol, buffer, strlen(buffer)>MAX_SYMBOL_LEN? MAX_SYMBOL_LEN:strlen(buffer));
-    }
-
-    if(parse_key_value(p, "background", buffer, MAX_ELEMENTS_SIZE) != TG_OK){
-        log_debug("Use common background for tetromino %s", tetromino->name);
-        memset(tetromino->background, 0, MAX_SYMBOL_LEN);
-    }else{
-        remove_quotation_marks(buffer);
-        strncpy(tetromino->background, buffer, strlen(buffer)>MAX_SYMBOL_LEN? MAX_SYMBOL_LEN:strlen(buffer));
+        shape->symbol_index = add_cell_symbol(buffer);
     }
 
     if(parse_key_value(p, "color", buffer, MAX_ELEMENTS_SIZE) != TG_OK){
-        log_debug("Use common color for tetromino %s", tetromino->name);
-        tetromino->color_index = -1;
+        log_debug("Use common color for shape %s", shape->name);
+        shape->color_index = -1;
     }else{
         int index = color_to_index(buffer);
         if(index == TG_ERROR){
             log_error("Invalid color %s", buffer);
-            tetromino->color_index = -1;
+            shape->color_index = -1;
         }else{
-            tetromino->color_index = index;
+            shape->color_index = index;
         }
     }
 
     return TG_OK;
 }
 
-int tetromino_type_to_int(const char* type)
+int shape_type_to_int(const char* type)
 {
     if(strcmp(type, "normal") == 0){
-        return TETROMINO_TYPE_NORMAL;
+        return SHAPE_TYPE_NORMAL;
     }else if(strcmp(type, "penetrate") == 0){
-        return TETROMINO_TYPE_PENETRATE;
+        return SHAPE_TYPE_PENETRATE;
     }else if(strcmp(type, "bomb") == 0){
-        return TETROMINO_TYPE_BOMB;
+        return SHAPE_TYPE_BOMB;
     }else{
-        return TETROMINO_TYPE_NONE;
+        return SHAPE_TYPE_NONE;
     }
 
-    return TETROMINO_TYPE_NONE;
+    return SHAPE_TYPE_NONE;
 } 
 
-const char* tetromino_type_to_string(int type)
+const char* shape_type_to_string(int type)
 {
     switch(type){
-        case TETROMINO_TYPE_NORMAL:
+        case SHAPE_TYPE_NORMAL:
             return "normal";
-        case TETROMINO_TYPE_PENETRATE:
+        case SHAPE_TYPE_PENETRATE:
             return "penetrate";
-        case TETROMINO_TYPE_BOMB:
+        case SHAPE_TYPE_BOMB:
             return "bomb";
         default:
             return "none";
     }
 }
 
-int parse_tetromino_map(const char* map_str, int* map, int* map_width, int* map_height)
+int parse_shape_map(const char* map_str, int* map, int* map_width, int* map_height)
 {
     int map_para = 0;
     int map_width_para = 0;
@@ -328,30 +323,9 @@ int parse_tetromino_map(const char* map_str, int* map, int* map_width, int* map_
     return TG_OK;
 }
 
-char* tetromino_to_string(tetromino_t tetromino)
+int parse_shape_common_attr(const char* common_str)
 {
-    static char buff[1024];
-    
-    memset(buff, 0, sizeof(buff));
-
-    for(int i = 0; i < tetromino.map_height; i++){
-        for(int j = 0; j < tetromino.map_width; j++){
-            if((tetromino.map >> (i*tetromino.map_width+j)) & 0x01){
-                snprintf(buff+strlen(buff), sizeof(buff)-strlen(buff), "%s", tetromino.symbol);
-            }else{
-                snprintf(buff+strlen(buff), sizeof(buff)-strlen(buff), "%s", tetromino.background);
-            }
-            
-        }
-        snprintf(buff+strlen(buff), sizeof(buff)-strlen(buff), "\n");
-    }
-
-    return buff;
-}
-
-int parse_tetrominoe_common_attr(const char* common_str)
-{
-    tetris_context_t* ctx = &context;
+    tui_context_t* ctx = get_tui_context();
     char buffer[MAX_ELEMENTS_SIZE] = "";
     const char* p = common_str;
     // 考虑引号占位长度2
@@ -386,10 +360,10 @@ int parse_tetrominoe_common_attr(const char* common_str)
     }
 
     if(strlen(background) != strlen(symbol)){
-        log_error("Symbol and background should have the same length");
+        log_error("Symbol and background should have the same length, %d != %d", strlen(symbol), strlen(background));
         return TG_ERROR;
     }
-    ctx->symbol_uniform_width = strlen(symbol);
+    ctx->background_index = add_cell_symbol(background);
     
     memset(buffer, 0, MAX_ELEMENTS_SIZE);
     if(parse_key_value(p, "color", buffer, MAX_COLOR_LEN) != TG_OK){
@@ -406,18 +380,14 @@ int parse_tetrominoe_common_attr(const char* common_str)
         }
     }
 
-    for(int i = 0; i< ctx->tetrominoes_num; i++){
-        size_t len = strlen(ctx->tetromino[i].symbol);
-        if(len == 0 || len > ctx->symbol_uniform_width){
-            strncpy(ctx->tetromino[i].symbol, symbol, strlen(symbol));
+    int symbol_index = add_cell_symbol(symbol);
+    for(int i = 0; i< ctx->shape_num; i++){
+        if(ctx->shape[i].symbol_index < 0){
+            ctx->shape[i].symbol_index = symbol_index;
         }
 
-        len = strlen(ctx->tetromino[i].background);
-        if(len == 0 || len > ctx->symbol_uniform_width){
-            strncpy(ctx->tetromino[i].background, background, strlen(background));
-        }
-        if(ctx->tetromino[i].color_index < 0){
-            ctx->tetromino[i].color_index = color_index;
+        if(ctx->shape[i].color_index < 0){
+            ctx->shape[i].color_index = color_index;
         }
     }
 

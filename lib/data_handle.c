@@ -7,6 +7,33 @@
 #include "common.h"
 #include "data_handle.h"
 
+int chars_to_string(const char* chars, str_t* str)
+{
+    str->len = strlen(chars);
+    str->str = tg_malloc(str->len+1);
+    if(str->str == NULL){
+        log_error("Malloc failed for str->str");
+        return TG_ERROR;
+    }
+    memcpy(str->str, chars, str->len);
+    str->str[str->len] = '\0';
+
+    return TG_OK;
+}
+
+int free_string(str_t* str)
+{
+
+    if(str->str != NULL){
+        tg_free(str->str);
+        str->str = NULL;
+    }else{
+        log_warn("str->str is NULL");
+    }
+
+    return TG_OK;
+}
+
 int count_char(const char* str, char ch)
 {
     if(str == NULL){
