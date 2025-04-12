@@ -207,6 +207,10 @@ int move_tetrominoe(int direction)
     // 碰撞检测
     if(collision(direction)){
         log_debug("Collision");
+        if(direction == MOVE_DOWN){
+            settlement();
+            generate_tetrominoe();
+        }
         return TG_OK;
     }
 
@@ -216,6 +220,12 @@ int move_tetrominoe(int direction)
     // 移动方块
     if(direction == MOVE_DOWN){
         tui_tetromino->y++;
+    }else if(direction == MOVE_LEFT){
+        tui_tetromino->x--;
+    }else if(direction == MOVE_RIGHT){
+        tui_tetromino->x++;
+    }else if (direction == MOVE_UP){
+        tui_tetromino->rotate++;  
     }else{
         log_warn("Unknown direction");
         return TG_ERROR;
@@ -254,7 +264,8 @@ bool collision(int direction)
             continue;
         }
         for(j = 0; j<temp_tetromino.shape.map_width; j++){
-            int board_flags_index = (temp_tetromino.y+i)*board->width + j; 
+            int board_flags_index = (temp_tetromino.y+i)*board->width + temp_tetromino.x + j; 
+            log_debug("board_flags_index %d, y %d, i %d, j %d, ", board_flags_index, temp_tetromino.y, i, j);
             if((shape.map >> (i*shape.map_width+j)) & 0x01 && board->flags[board_flags_index] == 1){
                 return true;
             }
@@ -288,47 +299,41 @@ void* handle_input(void* data)
     while(task->task_is_running){
         key = getch();
         log_debug("key %d", key);
-    }
-    /*
-    switch(key){
-        case KEY_UP:
-        case 'w':
-            tetromino->rotate = (tetromino->rotate + 1) % 4;
-            log_debug("Tetromino rotate");
-            break;
-        case KEY_DOWN:
-        case 's':
-            if(tetromino->y >= Game_context.game_screen->height){
-                return TG_DONE;
-            }else{
-                tetromino->y++;
+
+        pthread_mutex_lock(&move_lock);
+        switch(key){
+            case KEY_UP:
+            case 'w':
+                move_tetrominoe(MOVE_UP);
+                log_debug("Tetromino rotate");
+                break;
+            case KEY_DOWN:
+            case 's':
+                move_tetrominoe(MOVE_DOWN);
                 log_debug("Tetromino down");
-            }
-            break;
-        case KEY_LEFT:
-        case 'a':
-            if(tetromino->x > 0){
-                tetromino->x--;
+                break;
+            case KEY_LEFT:
+            case 'a':
+                move_tetrominoe(MOVE_LEFT);
                 log_debug("Tetromino left");
-            }
-            break;
-        case KEY_RIGHT:
-        case 'd':
-            if(tetromino->x < Game_context.game_screen->width){
-                tetromino->x++;
+                break;
+            case KEY_RIGHT:
+            case 'd':
+                move_tetrominoe(MOVE_RIGHT);
                 log_debug("Tetromino right");
-            }
-            break;
-        case '1':
-            log_debug("Pause the game");
-            break;
-        case '3':
-            log_debug("Exit the game");
-            break;
-        default:
-            log_warn("Unknow key: %d", key);
-            break;
+                break;
+            case '1':
+                log_debug("Pause the game");
+                break;
+            case '3':
+                log_debug("Exit the game");
+                break;
+            default:
+                log_warn("Unknow key: %d", key);
+                break;
+        }
+        pthread_mutex_unlock(&move_lock);
     }
-    */
+
     return NULL;
 }

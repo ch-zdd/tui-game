@@ -42,6 +42,7 @@
         "tui.h": "c",
         "math.h": "c",
         "map": "c",
-        "time.h": "c"
+        "time.h": "c",
+        "tg_queue.h": "c"
     }
 }
