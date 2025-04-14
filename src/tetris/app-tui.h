@@ -2,15 +2,14 @@
 #define TK_APP_TUI_H
 
 #include "app-context.h"
-#include "app.h"
 #include "../../lib/common.h"
 #include "../../lib/tui.h"
 
 #define DEFAULT_WINDOW_HEIGHT 24
 #define DEFAULT_WINDOW_WIDTH 48
 
-#define FOREGGROUND_DEFAULT get_cell_symbol(1)
-#define BACKGROUND_DEFAULT get_cell_symbol(0)
+#define DEFAULT_BKG_IDX 0
+#define DEFAULT_FRG_IDX 1
 
 #define battle_report(format, ...) scroll_print(tk_scroll, format, ##__VA_ARGS__)
 #define roll_battle_report(direction) scroll_direction(tk_scroll, direction)
@@ -51,7 +50,6 @@ typedef struct{
     int color_index;
 
     int symbol_index;
-    bool symbol_use;
 }shape_t;
 
 typedef struct{
@@ -60,12 +58,16 @@ typedef struct{
     int game_window_width;
 
     int cell_width;
+    int cell_height;
     char background_index;
     shape_t shape[MAX_TETROMINOES_NUM];
     int shape_num;
 }tui_context_t;
 
 extern scroll_t *tk_scroll;
+// 前向声明
+struct game_board_t;
+struct tetromino_t;
 
 tui_context_t* get_tui_context(void);
 
@@ -83,8 +85,8 @@ char* shape_to_string(shape_t shape);
 
 int coord_to_game(int scr_x, int scr_y, int* x, int* y);
 int coord_to_scr(int x, int y, int* scr_x, int* scr_y);
-int draw_border(game_board_t* board);
-int draw_board(game_board_t* board);
-int draw_tetromino(tetromino_t tetromino, bool is_clear);
+int draw_cell(int y, int x, int symbol_index);
+void start_draw(void);
+void end_draw(void);
 
 #endif

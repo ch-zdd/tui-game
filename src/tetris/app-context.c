@@ -296,7 +296,7 @@ int parse_shape_map(const char* map_str, int* map, int* map_width, int* map_heig
     }
 
     map_width_para = len/map_height_para;
-    if(len != map_width_para*map_height_para){
+    if(len != map_width_para*map_height_para || map_width_para != map_height_para){
         log_error("Invalid map width");
         return TG_ERROR;
     }
