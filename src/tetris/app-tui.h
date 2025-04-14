@@ -13,8 +13,14 @@
 #define DEFAULT_SYMBOL_COLOR_IDX 1
 #define DEFAULT_BKG_COLOR_IDX 0
 
+#define APP_PAUSE '1'
+#define APP_RESTART '2'
+#define APP_EXIT '3'
+
 #define battle_report(format, ...) scroll_print(tk_scroll, format, ##__VA_ARGS__)
 #define roll_battle_report(direction) scroll_direction(tk_scroll, direction)
+
+#define input() getch()
 
 typedef struct{
     int scr_line;
@@ -88,8 +94,15 @@ char* shape_to_string(shape_t shape);
 int coord_to_game(int scr_x, int scr_y, int* x, int* y);
 int coord_to_scr(int x, int y, int* scr_x, int* scr_y);
 int draw_cell(int y, int x, int symbol_index, int color_index);
-int put_text(int y, int x, const char* text, int color_index);
+
 void start_draw(void);
 void end_draw(void);
 
+int put_text(WINDOW * w, int y, int x, const char* text, int color_index);
+void info_text(int y, int x, const char* text, int color_index);
+void info_clear(int y, int x, const char* text);
+void info_clear_zone(int y, int x, int height, int width);
+
+void stat_text(int y, int x, const char* text, int color_index);
+void stat_clear(int y, int x, const char* text);
 #endif

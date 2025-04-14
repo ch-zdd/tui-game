@@ -105,14 +105,14 @@ int app_tui_init(void)
     getmaxyx(stdscr, tui->main.scr_line, tui->main.scr_col);
     if(tui->main.scr_line < 16 || tui->main.scr_col < 70){
         printw("screen size(line:%d, at least 16; column:%d, at least 70) too small, press any key to exit...", tui->main.scr_line, tui->main.scr_col);
-        getch();
+        input();
         return TG_ERROR;
     }
     
     if(tui->main.scr_col < get_tui_context()->game_window_width*2){
         printw("screen size(line:%d, at least 16; column:%d, at least twice the width of the game window %d) too small, press any key to exit...", 
             tui->main.scr_line, tui->main.scr_col, get_tui_context()->game_window_width*2);
-        getch();
+        input();
         return TG_ERROR;
     }
 
@@ -205,7 +205,7 @@ int game_window_draw(void)
             get_tui_context()->game_window_width*2);
         log_error("ERROR: %s ", buff);
         mvwprintw(main->w, main->scr_line/2, 0, "%s", buff);
-        getch();
+        input();
         return TG_ERROR;
     }
 
@@ -219,7 +219,7 @@ int game_window_draw(void)
     stat->scr_col = main->scr_col-game->scr_col;
 
     mvaddstr(main->scr_line/2, main->scr_col/2 - 12, "Press any key to start...");
-    getch();
+    input();
     scr_dump(main->store_path);
 
 
@@ -238,10 +238,15 @@ int game_window_draw(void)
     wrefresh(stat->w);
     stat->active = true;
 
-    put_text(2, 2, "Pause...", COLOR_BLUE);
-    //wrefresh(game->w);
-    getch();
-    wclear(game->w);
+    info_text(info->scr_line-4, 4, "Press 1 to pause...", COLOR_BLUE);
+    info_text(info->scr_line-3, 4, "Press 2 to restart...", COLOR_BLUE);
+    info_text(info->scr_line-2, 4, "Press 3 to exit...", COLOR_BLUE);
+
+    stat_text(2, 4, "socre: ", COLOR_GREEN);
+
+    info_text(2, 2, "Pause...", COLOR_BLUE);
+    input();
+    info_clear(2, 2, "Pause...");
 
     return TG_OK;
 }
@@ -277,12 +282,9 @@ int draw_cell(int y, int x, int symbol_index, int color_index)
     return TG_OK;
 }
 
-int put_text(int y, int x, const char* text, int color_index)
+int put_text(WINDOW * w, int y, int x, const char* text, int color_index)
 {
-    #if 0
-    tetris_window_para_t* game = &get_tui_context()->window.game;
-    int scr_x, scr_y;
-    chtype chtype_buffer[CHTYPE_MAX_LEN];
+    chtype chtype_buffer[CHTYPE_MAX_LEN] = {0};
 
     if(strlen(text) >= CHTYPE_MAX_LEN){
         log_error("ERROR: text is too long");
@@ -295,10 +297,9 @@ int put_text(int y, int x, const char* text, int color_index)
     };
 
     str_to_chtype(str, chtype_buffer, color_index);
-    coord_to_scr(x, y, &scr_x, &scr_y);
-    mvwaddchstr(game->w, scr_y, scr_x, chtype_buffer);
-    wrefresh(game->w);
-    #endif
+    mvwaddchstr(w, y, x, chtype_buffer);
+    wrefresh(w);
+
     return TG_OK;
 }
 
@@ -310,4 +311,42 @@ void start_draw(void)
 void end_draw(void)
 {
     wrefresh(get_tui_context()->window.game.w);
+}
+
+void info_text(int y, int x, const char* text, int color_index) 
+{
+    tetris_window_t* win = &get_tui_context()->window;
+    put_text(win->info.w, y, x, text, color_index);
+}
+
+void info_clear(int y, int x, const char* text)
+{
+    tetris_window_t* win = &get_tui_context()->window;
+    int size = strlen(text);
+
+    wclrzone(win->info.w, 1, size, y, x);
+    wrefresh(win->info.w);
+}
+
+void info_clear_zone(int y, int x, int height, int width)
+{
+    tetris_window_t* win = &get_tui_context()->window;
+
+    wclrzone(win->info.w, height, width, y, x);
+    wrefresh(win->info.w);
+}
+
+void stat_text(int y, int x, const char* text, int color_index)
+{
+    tetris_window_t* win = &get_tui_context()->window;
+    put_text(win->statistics.w, y, x, text, color_index);
+}
+
+void stat_clear(int y, int x, const char* text)
+{
+    tetris_window_t* win = &get_tui_context()->window;
+    int size = strlen(text);
+
+    wclrzone(win->statistics.w, 1, size, y, x);
+    wrefresh(win->statistics.w);
 }

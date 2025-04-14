@@ -74,6 +74,7 @@ static struct{
     tetromino_t* tetromino_pool;
     game_board_t game_board;
     tetromino_t current_tetromino;
+    int score;
 }game_context;
 
 pthread_mutex_t move_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -111,6 +112,7 @@ void draw_tetromino(tetromino_t tetromino);
 void clear_tetromino(tetromino_t tetromino);
 void draw_tetromino_2(tetromino_t tetromino);
 
+void stat_update(int socre);
 
 int start_task(int task_index);
 int stop_task(int task_index);
@@ -158,6 +160,7 @@ int game_ctx_init(void)
     tui_context_t * tui_ctx = get_tui_context();
     memset(game_board, 0, sizeof(game_board_t));
 
+    game_context.score = 0;
     game_board->height = tui_ctx->game_window_height/ tui_ctx->cell_height;
     game_board->width = tui_ctx->game_window_width / tui_ctx->cell_width;
     log_debug("Game board height: %d, width: %d", game_board->height, game_board->width);
@@ -196,6 +199,7 @@ int game_ctx_init(void)
         game_board->cell[(game_board->height-1)*game_board->width+i].color_index = DEFAULT_SYMBOL_COLOR_IDX;
     }
     draw_border();
+    draw_board();
 
     // 获取所有方块到本地池
     int tetromino_num = tui_ctx->shape_num;
@@ -266,11 +270,11 @@ int generate_tetrominoe(tetromino_t* result_tetromino)
     tetromino.y = TETROMINO_BORN_Y;
     log_debug("Generate tetrominoe %s", ctx->shape[index].name);
 
+    memcpy(result_tetromino, &tetromino, sizeof(tetromino_t));
     if(collision(MOVE_NONE)){
         return TG_ERROR;
     }
 
-    memcpy(result_tetromino, &tetromino, sizeof(tetromino_t));
     return TG_OK;
 }
 
@@ -288,7 +292,6 @@ int move_tetrominoe(int direction)
                 // 没有空间生成新方块，游戏结束
                 // todo: 显示游戏结束
                 log_debug("Game over");
-                pause_game();
                 restart_game();
                 
                 return TG_OK;
@@ -395,11 +398,12 @@ int settlement(void)
         // 下移上边所有行的数据
         // 边界肯定为1，是否复制无影响
         memmove(&board->cell[2*board->width], &board->cell[1*board->width], board->width*(i - 1)*sizeof(board_cell_t));
-        
-        // todo: 计分
+
+        game_context.score++;
     }
     // 刷新界面
     draw_board();
+    stat_update(game_context.score);
 
     return TG_OK;
 }
@@ -457,7 +461,7 @@ void* handle_input(void* data)
     int key = 0, ret = TG_OK;
     task_t* task = get_task(TASK_INPUT_LISTENER);
     while(task->task_is_running){
-        key = getch();
+        key = input();
         log_debug("key %d", key);
 
         pthread_mutex_lock(&move_lock);
@@ -482,12 +486,17 @@ void* handle_input(void* data)
                 ret = move_tetrominoe(MOVE_RIGHT);
                 log_debug("Tetromino right");
                 break;
-            case '1':
+            case APP_PAUSE:
                 log_debug("Pause the game");
                 pause_game();
                 break;
-            case '3':
+            case APP_RESTART:
+                log_debug("Restart the game");
+                restart_game();
+                break;
+            case APP_EXIT:
                 log_debug("Exit the game");
+                end_game();
                 break;
             default:
                 log_warn("Unknow key: %d", key);
@@ -595,6 +604,11 @@ void end_game()
 
 void restart_game()
 {
+    info_text(2, 2 , "Game Over, press key 2 to restart", COLOR_RED);
+    while(input() != APP_RESTART){
+        ;
+    }
+    info_clear(2,2, "Game Over, press key 2 to restart");
     // 重置游戏上下文
     game_ctx_final();
 
@@ -611,6 +625,16 @@ void restart_game()
 
 void pause_game()
 {
-    //put_text(2, 2, "Pause", COLOR_GREEN);
-    getch();
+    info_text(2, 2, "Pause", COLOR_GREEN);
+    while(input() != APP_PAUSE){
+        ;
+    }
+    info_clear(2, 2, "Pause");
+}
+
+void stat_update(int socre)
+{
+    char buff[100] = "";
+    sprintf(buff, "socre: %04d", socre);
+    stat_text(2, 2, buff, COLOR_GREEN);
 }
