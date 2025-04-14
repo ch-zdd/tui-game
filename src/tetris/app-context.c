@@ -330,7 +330,7 @@ int parse_shape_common_attr(const char* common_str)
     const char* p = common_str;
     // 考虑引号占位长度2
     char symbol[MAX_SYMBOL_LEN] = "";
-    char background[MAX_SYMBOL_LEN] = "";
+    char bkg_symbol[MAX_SYMBOL_LEN] = "";
     int cfg_symbol_len = MAX_SYMBOL_LEN+2;
     int color_index = -1;
 
@@ -356,14 +356,14 @@ int parse_shape_common_attr(const char* common_str)
             log_error("Invalid background");
             return TG_ERROR;
         }
-        strncpy(background, buffer, strlen(buffer)>MAX_SYMBOL_LEN? MAX_SYMBOL_LEN:strlen(buffer));
+        strncpy(bkg_symbol, buffer, strlen(buffer)>MAX_SYMBOL_LEN? MAX_SYMBOL_LEN:strlen(buffer));
     }
 
-    if(strlen(background) != strlen(symbol)){
-        log_error("Symbol and background should have the same length, %d != %d", strlen(symbol), strlen(background));
+    if(strlen(bkg_symbol) != strlen(symbol)){
+        log_error("Symbol and background should have the same length, %d != %d", strlen(symbol), strlen(bkg_symbol));
         return TG_ERROR;
     }
-    ctx->background_index = add_cell_symbol(background);
+    ctx->bkg_symbol_index = add_cell_symbol(bkg_symbol);
     
     memset(buffer, 0, MAX_ELEMENTS_SIZE);
     if(parse_key_value(p, "color", buffer, MAX_COLOR_LEN) != TG_OK){

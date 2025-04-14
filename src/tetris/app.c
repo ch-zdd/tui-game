@@ -9,6 +9,9 @@
 #include "../../lib/tg_queue.h"
 #include "../../lib/tg_time.h"
 
+// 简化游戏逻辑，出生地限制在游戏板内
+#define TETROMINO_BORN_Y 1
+
 typedef struct{
     bool task_is_running;
     pthread_t task_id;
@@ -23,13 +26,15 @@ enum{
 };
 
 typedef struct{
-    int Foreground_index;
-    int background_index;
+    int symbol_index;
+    int color_index;
     bool presence;
 }board_cell_t;
 
 typedef struct{
     board_cell_t* cell;
+    int bkg_symbol_index;
+    int bkg_color_index;
     int width;
     int height;
 }game_board_t;
@@ -38,7 +43,8 @@ typedef struct{
     int map;
     int width;
     int height;
-    int Foreground_index;
+    int symbol_index;
+    int color_index;
     // 左上角为坐标原点，x和y为方块左上角的坐标
     int x;
     int y;
@@ -48,7 +54,8 @@ enum{
     MOVE_DOWN,
     MOVE_LEFT,
     MOVE_RIGHT,
-    MOVE_UP
+    MOVE_UP,
+    MOVE_NONE
 };
 
 void* handle_input(void* data);
@@ -86,9 +93,13 @@ game_board_t* get_game_board(void)
 int game_ctx_init(void);
 void game_ctx_final(void);
 
+void end_game();
+void restart_game();
+void pause_game();
+
 void game_loop(void);
 
-tetromino_t generate_tetrominoe(void);
+int generate_tetrominoe(tetromino_t* result_tetromino);
 bool collision(int direction);
 int move_tetrominoe(int direction);
 int settlement(void);
@@ -102,6 +113,7 @@ void draw_tetromino_2(tetromino_t tetromino);
 
 
 int start_task(int task_index);
+int stop_task(int task_index);
 
 int app_run(void)
 {
@@ -111,6 +123,9 @@ int app_run(void)
     if(TG_OK != game_window_draw()){
         return TG_ERROR;
     }
+
+    // 启动任务
+    start_task(TASK_INPUT_LISTENER);
 
     if(TG_OK != game_ctx_init()){
         return TG_ERROR;
@@ -123,7 +138,13 @@ int app_run(void)
 
 int app_stop()
 {
+    int i = 0;
+
     game_context.game_is_running = false;
+    for(i = 0; i<MAX_TASK_NUM; i++){
+        stop_task(i);
+    }
+
     game_ctx_final();
 
     return TG_OK;
@@ -147,14 +168,32 @@ int game_ctx_init(void)
     }
     memset(game_board->cell, 0, game_board->width*game_board->height*sizeof(board_cell_t));
     int i = 0;
-    // 窗口边框与游戏版边重合, 板边默认符号无需专门设置
+    // 窗口边框与游戏版边重合
+    // 背景统一
+    game_board->bkg_symbol_index = tui_ctx->bkg_symbol_index;
+    game_board->bkg_color_index = DEFAULT_BKG_COLOR_IDX;
+    for(i = 0; i<game_board->height*game_board->width; i++){
+        game_board->cell[i].presence = 0;
+        game_board->cell[i].symbol_index = DEFAULT_BKG_SYMBOL_IDX;
+        game_board->cell[i].color_index = DEFAULT_BKG_COLOR_IDX;
+    }
     for(i = 0; i<game_board->height; i++){
         game_board->cell[i*game_board->width].presence = 1;
+        game_board->cell[i*game_board->width].symbol_index = DEFAULT_SYMBOL_IDX;
+        game_board->cell[i*game_board->width].color_index = DEFAULT_SYMBOL_COLOR_IDX;
+
         game_board->cell[i*game_board->width+game_board->width-1].presence = 1;
+        game_board->cell[i*game_board->width+game_board->width-1].symbol_index = DEFAULT_SYMBOL_IDX;
+        game_board->cell[i*game_board->width+game_board->width-1].color_index = DEFAULT_SYMBOL_COLOR_IDX;
     }
     for(i = 0; i<game_board->width; i++){
         game_board->cell[i].presence = 1;
+        game_board->cell[i].symbol_index = DEFAULT_SYMBOL_IDX;
+        game_board->cell[i].color_index = DEFAULT_SYMBOL_COLOR_IDX;
+
         game_board->cell[(game_board->height-1)*game_board->width+i].presence = 1;
+        game_board->cell[(game_board->height-1)*game_board->width+i].symbol_index = DEFAULT_SYMBOL_IDX;
+        game_board->cell[(game_board->height-1)*game_board->width+i].color_index = DEFAULT_SYMBOL_COLOR_IDX;
     }
     draw_border();
 
@@ -162,7 +201,8 @@ int game_ctx_init(void)
     int tetromino_num = tui_ctx->shape_num;
     game_context.tetromino_pool = (tetromino_t*)tg_malloc(tetromino_num*sizeof(tetromino_t));
     for(i = 0; i<tetromino_num; i++){
-        game_context.tetromino_pool[i].Foreground_index = tui_ctx->shape[i].symbol_index;
+        game_context.tetromino_pool[i].symbol_index = tui_ctx->shape[i].symbol_index;
+        game_context.tetromino_pool[i].color_index = tui_ctx->shape[i].color_index;
         game_context.tetromino_pool[i].height = tui_ctx->shape[i].map_height;
         game_context.tetromino_pool[i].width = tui_ctx->shape[i].map_width;
         game_context.tetromino_pool[i].map = tui_ctx->shape[i].map;
@@ -175,18 +215,6 @@ int game_ctx_init(void)
 
 void game_ctx_final(void)
 {
-    int i = 0;
-    // 停止所有任务
-    for(i = 0; i<MAX_TASK_NUM; i++){
-        if(task_list[i].task_is_running){
-            pthread_cancel(task_list[i].task_id);
-            task_list[i].task_is_running = false;
-            pthread_join(task_list[i].task_id, NULL);
-        }
-        if(task_list[i].task_data != NULL){
-            tg_free(task_list[i].task_data);
-        }
-    }
     // 清理游戏资源
     game_board_t *game_board = get_game_board();
     if(game_board->cell != NULL){
@@ -206,8 +234,10 @@ void game_loop(void)
 
     game_context.game_is_running = true;
 
-    start_task(TASK_INPUT_LISTENER);
-    game_context.current_tetromino =  generate_tetrominoe();
+    if(TG_OK !=  generate_tetrominoe(&game_context.current_tetromino)){
+        log_warn("Failed to generate tetrominoe, maybe the screen is too small ");
+        return;
+    }
     draw_tetromino(game_context.current_tetromino);
     
     while(game_context.game_is_running){
@@ -215,12 +245,16 @@ void game_loop(void)
         //与输入监控的任务互斥
         pthread_mutex_lock(&move_lock);
         log_debug("loop down");
-        move_tetrominoe(MOVE_DOWN);
+        if(TG_OK != move_tetrominoe(MOVE_DOWN)){
+            // todo: 显示游戏结束
+            log_debug("Exit game loop");
+            break;
+        }
         pthread_mutex_unlock(&move_lock);
     }
 }
 
-tetromino_t generate_tetrominoe(void)
+int generate_tetrominoe(tetromino_t* result_tetromino)
 {
     tetromino_t tetromino;
     tui_context_t* ctx = get_tui_context();
@@ -229,11 +263,15 @@ tetromino_t generate_tetrominoe(void)
     tetromino = game_context.tetromino_pool[index];
 
     tetromino.x = get_game_board()->width/2 - tetromino.width/2;
-    // 简化游戏逻辑，出生地限制在游戏板内
-    tetromino.y = 1;
+    tetromino.y = TETROMINO_BORN_Y;
     log_debug("Generate tetrominoe %s", ctx->shape[index].name);
 
-    return tetromino;
+    if(collision(MOVE_NONE)){
+        return TG_ERROR;
+    }
+
+    memcpy(result_tetromino, &tetromino, sizeof(tetromino_t));
+    return TG_OK;
 }
 
 //在移动方块前调用
@@ -246,7 +284,15 @@ int move_tetrominoe(int direction)
         log_debug("Collision");
         if(direction == MOVE_DOWN){
             settlement();
-            game_context.current_tetromino = generate_tetrominoe();
+            if(TG_OK != generate_tetrominoe(&game_context.current_tetromino)){
+                // 没有空间生成新方块，游戏结束
+                // todo: 显示游戏结束
+                log_debug("Game over");
+                pause_game();
+                restart_game();
+                
+                return TG_OK;
+            }
             // 绘制新方块
             draw_tetromino(game_context.current_tetromino);
         }
@@ -265,6 +311,8 @@ int move_tetrominoe(int direction)
         tetromino->x++;
     }else if (direction == MOVE_UP){
         rotate_shape(tetromino); 
+    }else if(direction == MOVE_NONE){
+        log_debug("Move none");
     }else{
         log_warn("Unknown direction");
         return TG_ERROR;
@@ -289,6 +337,8 @@ bool collision(int direction)
         temp_tetromino.x++;
     }else if (direction == MOVE_UP){
         rotate_shape(&temp_tetromino);   
+    }else if(direction == MOVE_NONE){
+        log_debug("Move none");
     }else{
         log_error("Unknown direction %d", direction);
         return true;
@@ -322,7 +372,8 @@ int settlement(void)
                 // 不考虑异常情况下导致的方块和游戏板重合
                 int board_flags_index = (tetromino.y+i)*board->width + tetromino.x + j; 
                 board->cell[board_flags_index].presence = 1;
-                board->cell[board_flags_index].Foreground_index = tetromino.Foreground_index;
+                board->cell[board_flags_index].symbol_index = tetromino.symbol_index;
+                board->cell[board_flags_index].color_index = tetromino.color_index;
             }
         }
     }
@@ -384,9 +435,26 @@ int start_task(int task_index)
     return TG_OK;
 }
 
+int stop_task(int task_index)
+{
+    task_t* task = get_task(task_index);
+    if(task->task_is_running){
+        task->task_is_running = false;
+        // 由于getch()阻塞,手动取消
+        pthread_cancel(task->task_id);
+        pthread_join(task->task_id, NULL);
+    }
+
+    if(task->task_data != NULL){
+        tg_free(task->task_data);
+    }
+
+    return TG_OK;
+}
+
 void* handle_input(void* data)
 {
-    int key = 0;
+    int key = 0, ret = TG_OK;
     task_t* task = get_task(TASK_INPUT_LISTENER);
     while(task->task_is_running){
         key = getch();
@@ -396,26 +464,27 @@ void* handle_input(void* data)
         switch(key){
             case KEY_UP:
             case 'w':
-                move_tetrominoe(MOVE_UP);
+                ret = move_tetrominoe(MOVE_UP);
                 log_debug("Tetromino rotate");
                 break;
             case KEY_DOWN:
             case 's':
-                move_tetrominoe(MOVE_DOWN);
+                ret = move_tetrominoe(MOVE_DOWN);
                 log_debug("Tetromino down");
                 break;
             case KEY_LEFT:
             case 'a':
-                move_tetrominoe(MOVE_LEFT);
+                ret = move_tetrominoe(MOVE_LEFT);
                 log_debug("Tetromino left");
                 break;
             case KEY_RIGHT:
             case 'd':
-                move_tetrominoe(MOVE_RIGHT);
+                ret = move_tetrominoe(MOVE_RIGHT);
                 log_debug("Tetromino right");
                 break;
             case '1':
                 log_debug("Pause the game");
+                pause_game();
                 break;
             case '3':
                 log_debug("Exit the game");
@@ -425,6 +494,11 @@ void* handle_input(void* data)
                 break;
         }
         pthread_mutex_unlock(&move_lock);
+
+        if(ret == TG_ERROR){
+            log_error("Failed to move tetrominoe, exit the game");
+            end_game();
+        }
     }
 
     return NULL;
@@ -433,21 +507,26 @@ void* handle_input(void* data)
 void draw_border(void)
 {
     int i;
+    board_cell_t cell1, cell2;
     game_board_t* board = get_game_board();
 
     for(i = 0; i<board->height; i++){
-        if(board->cell[i*board->width].presence != 1 || board->cell[i*board->width+board->width-1].presence != 1){
+        cell1 = board->cell[i*board->width];
+        cell2 = board->cell[i*board->width+board->width-1];
+        if(cell1.presence != 1 || cell2.presence != 1){
             log_warn("border of board error");
         }
-        draw_cell(i, 0, DEFAULT_FRG_IDX);
-        draw_cell(i, board->width-1, DEFAULT_FRG_IDX);
+        draw_cell(i, 0, cell1.symbol_index, cell1.color_index);
+        draw_cell(i, board->width-1, cell2.symbol_index, cell2.color_index);
     }
     for(i = 0; i<board->width; i++){
-        if(board->cell[i].presence != 1 || board->cell[(board->height-1)*board->width+i].presence != 1){
+        cell1 = board->cell[i];
+        cell2 = board->cell[(board->height-1)*board->width+i];
+        if(cell1.presence != 1 || cell2.presence != 1){
             log_warn("border of board error");
         }
-        draw_cell(0, i, DEFAULT_FRG_IDX);
-        draw_cell(board->height-1, i, DEFAULT_FRG_IDX);
+        draw_cell(0, i, cell1.symbol_index, cell1.color_index);
+        draw_cell(board->height-1, i, cell2.symbol_index, cell2.color_index);
     }
 }
 
@@ -462,9 +541,9 @@ void draw_board(void)
         for(j = 1; j < board->width-1; j++){
             cell = board->cell[i*board->width+j];
             if(cell.presence == 1){
-                draw_cell(i, j, cell.Foreground_index);
+                draw_cell(i, j, cell.symbol_index, cell.color_index);
             }else{
-                draw_cell(i, j, cell.background_index);
+                draw_cell(i, j, board->bkg_symbol_index, board->bkg_color_index);
             }
         }
     }
@@ -478,7 +557,8 @@ void draw_tetromino(tetromino_t tetromino)
 
 void clear_tetromino(tetromino_t tetromino)
 {
-    tetromino.Foreground_index = DEFAULT_BKG_IDX;
+    tetromino.symbol_index = get_game_board()->bkg_symbol_index;
+    tetromino.color_index = get_game_board()->bkg_color_index;
     draw_tetromino_2(tetromino);
 }
 
@@ -498,7 +578,7 @@ void draw_tetromino_2(tetromino_t tetromino)
 
         for(j = 0; j < tetromino.width; j++){           
             if((tetromino.map >> (i*tetromino.width+j)) & 0x01){
-                draw_cell(y+i, x+j, tetromino.Foreground_index);
+                draw_cell(y+i, x+j, tetromino.symbol_index, tetromino.color_index);
             }else{
                 // 游戏板背景统一
                 ;
@@ -506,4 +586,31 @@ void draw_tetromino_2(tetromino_t tetromino)
         }
     }
     end_draw();
+}
+
+void end_game()
+{
+    game_context.game_is_running = false;
+}
+
+void restart_game()
+{
+    // 重置游戏上下文
+    game_ctx_final();
+
+    // 重新初始化游戏上下文
+    game_ctx_init();
+
+    if(TG_OK !=  generate_tetrominoe(&game_context.current_tetromino)){
+        log_warn("Failed to generate tetrominoe, maybe the screen is too small ");
+        return;
+    }
+    draw_tetromino(game_context.current_tetromino);
+    
+}
+
+void pause_game()
+{
+    //put_text(2, 2, "Pause", COLOR_GREEN);
+    getch();
 }

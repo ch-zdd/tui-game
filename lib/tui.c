@@ -394,3 +394,17 @@ int scroll_direction(scroll_t* scroll, int direction)
 
     return 0;
 }
+
+int str_to_chtype(str_t str, chtype* chstr, int color_index)
+{
+    if(chstr == NULL){
+        log_error("str or chstr is NULL");
+        return TG_ERROR;
+    }
+
+    for(int i = 0; i<str.len; i++){
+        chstr[i] = (chtype)str.str[i] | COLOR_PAIR(color_index);
+    }
+
+    return TG_OK;
+}

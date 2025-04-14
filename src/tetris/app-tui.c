@@ -5,10 +5,11 @@
 #include "../../lib/data_handle.h"
 #include "app.h"
 
-#define FOREGGROUND_DEFAULT get_cell_symbol(DEFAULT_FRG_IDX)
-#define BACKGROUND_DEFAULT get_cell_symbol(DEFAULT_BKG_IDX)
+#define FOREGGROUND_DEFAULT get_cell_symbol(DEFAULT_SYMBOL_IDX)
+#define BACKGROUND_DEFAULT get_cell_symbol(DEFAULT_BKG_SYMBOL_IDX)
 
 #define CELL_SYMBOL_MAX_LEN 2
+#define CHTYPE_MAX_LEN 1024
 
 static tui_context_t tui_context;
 
@@ -195,8 +196,9 @@ int game_window_draw(void)
         return TG_ERROR;
     }
 
-    if(get_tui_context()->game_window_height > main->scr_line || get_tui_context()->game_window_width*2 > main->scr_col){
-        snprintf(buff, 1024, "screen size = %d * %d; need size %d * %d ", 
+    if(get_tui_context()->game_window_height* get_tui_context()->cell_height > main->scr_line 
+        || get_tui_context()->game_window_width*get_tui_context()->cell_width > main->scr_col){
+        snprintf(buff, 1024, "screen size = %d * %d; need min size %d * %d ", 
             main->scr_line, 
             main->scr_col, 
             get_tui_context()->game_window_height, 
@@ -236,8 +238,8 @@ int game_window_draw(void)
     wrefresh(stat->w);
     stat->active = true;
 
-    mvwprintw(game->w, game->scr_line/2, game->scr_col/2, "Pause...");
-    wrefresh(game->w);
+    put_text(2, 2, "Pause...", COLOR_BLUE);
+    //wrefresh(game->w);
     getch();
     wclear(game->w);
 
@@ -260,14 +262,43 @@ int coord_to_game(int scr_x, int scr_y, int* x, int* y)
     return TG_OK;
 }
 
-int draw_cell(int y, int x, int symbol_index)
+int draw_cell(int y, int x, int symbol_index, int color_index)
 {
     tetris_window_para_t* game = &get_tui_context()->window.game;
     str_t* symbol = get_cell_symbol(symbol_index);
+    chtype chtype_buffer[CELL_SYMBOL_MAX_LEN];
     int scr_x, scr_y;
-    coord_to_scr(x, y, &scr_x, &scr_y);
-    mvwprintw(game->w, scr_y, scr_x, "%s", symbol->str);
 
+    coord_to_scr(x, y, &scr_x, &scr_y);
+
+    str_to_chtype(*symbol, chtype_buffer, color_index);
+    mvwaddchstr(game->w,scr_y, scr_x, chtype_buffer);
+
+    return TG_OK;
+}
+
+int put_text(int y, int x, const char* text, int color_index)
+{
+    #if 0
+    tetris_window_para_t* game = &get_tui_context()->window.game;
+    int scr_x, scr_y;
+    chtype chtype_buffer[CHTYPE_MAX_LEN];
+
+    if(strlen(text) >= CHTYPE_MAX_LEN){
+        log_error("ERROR: text is too long");
+        return TG_ERROR;
+    }
+
+    str_t str = {
+        .str = (char*)text,
+        .len = strlen(text)
+    };
+
+    str_to_chtype(str, chtype_buffer, color_index);
+    coord_to_scr(x, y, &scr_x, &scr_y);
+    mvwaddchstr(game->w, scr_y, scr_x, chtype_buffer);
+    wrefresh(game->w);
+    #endif
     return TG_OK;
 }
 
