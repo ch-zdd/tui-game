@@ -276,6 +276,7 @@ int generate_tetrominoe(tetromino_t* result_tetromino)
 int move_tetrominoe(int direction)
 {
     tetromino_t* tetromino = &game_context.current_tetromino;
+    int ret = TG_OK;
 
     pthread_mutex_lock(&move_lock);
     // 碰撞检测
@@ -289,12 +290,14 @@ int move_tetrominoe(int direction)
                 log_debug("Game over");
                 restart_game();
                 
-                return TG_OK;
+                ret = TG_OK;
+                goto end;
             }
             // 绘制新方块
             draw_tetromino(game_context.current_tetromino);
         }
-        return TG_OK;
+        ret = TG_OK;
+        goto end;
     }
 
     // 清理旧方块
@@ -314,14 +317,18 @@ int move_tetrominoe(int direction)
         log_debug("Move none");
     }else{
         log_warn("Unknown direction");
-        return TG_ERROR;
+        ret =  TG_ERROR;
+        goto end;
     }
 
     //绘制新方块
     draw_tetromino(*tetromino);
+    ret = TG_OK;
+
+end:
     pthread_mutex_unlock(&move_lock);
 
-    return TG_OK;
+    return ret;
 }
 
 bool collision(int direction)
