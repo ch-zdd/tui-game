@@ -246,15 +246,9 @@ void game_loop(void)
     
     while(game_context.game_is_running){
         usleep(current_interval*1000);
-        //与输入监控的任务互斥
-        pthread_mutex_lock(&move_lock);
+
         log_debug("loop down");
-        if(TG_OK != move_tetrominoe(MOVE_DOWN)){
-            // todo: 显示游戏结束
-            log_debug("Exit game loop");
-            break;
-        }
-        pthread_mutex_unlock(&move_lock);
+        move_tetrominoe(MOVE_DOWN);
     }
 }
 
@@ -283,6 +277,7 @@ int move_tetrominoe(int direction)
 {
     tetromino_t* tetromino = &game_context.current_tetromino;
 
+    pthread_mutex_lock(&move_lock);
     // 碰撞检测
     if(collision(direction)){
         log_debug("Collision");
@@ -305,6 +300,7 @@ int move_tetrominoe(int direction)
     // 清理旧方块
     clear_tetromino(*tetromino);
 
+    
     // 移动方块
     if(direction == MOVE_DOWN){
         tetromino->y++;
@@ -323,6 +319,7 @@ int move_tetrominoe(int direction)
 
     //绘制新方块
     draw_tetromino(*tetromino);
+    pthread_mutex_unlock(&move_lock);
 
     return TG_OK;
 }
@@ -464,7 +461,6 @@ void* handle_input(void* data)
         key = input();
         log_debug("key %d", key);
 
-        pthread_mutex_lock(&move_lock);
         switch(key){
             case KEY_UP:
             case 'w':
@@ -502,7 +498,6 @@ void* handle_input(void* data)
                 log_warn("Unknow key: %d", key);
                 break;
         }
-        pthread_mutex_unlock(&move_lock);
 
         if(ret == TG_ERROR){
             log_error("Failed to move tetrominoe, exit the game");
