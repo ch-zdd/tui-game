@@ -25,12 +25,12 @@
     if(board.score == 0){\
         break;\
     }\
+    snake_t* tmp = Head;\
     while(1){\
-        snake_t* tmp = Head;\
         node_t* next_node = tmp->node.next;\
         tg_free(tmp);\
         if(next_node == NULL) break;\
-        Head = container_of(next_node, snake_t, node);\
+        tmp = container_of(next_node, snake_t, node);\
     }\
     board.score = 0;\
 }while(0)
