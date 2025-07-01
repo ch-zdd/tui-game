@@ -46,5 +46,5 @@ int scroll_print_line(scroll_t* scroll, chtype* chstr, size_t len);
 int scroll_print(scroll_t* scroll, const char* format, ...) CHECK_FMT(2,3);
 int scroll_direction(scroll_t* scroll, int direction);
 int str_to_chtype(str_t str, chtype* chstr, int color_index);
-
+chtype* ch_to_chtype(const char* str, int color_index);
 #endif

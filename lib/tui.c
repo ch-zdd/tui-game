@@ -408,3 +408,18 @@ int str_to_chtype(str_t str, chtype* chstr, int color_index)
 
     return TG_OK;
 }
+
+chtype* ch_to_chtype(const char* str, int color_index)
+{
+    static chtype chstr[1024] = {};
+    if(str == NULL){
+        log_error("str or chstr is NULL");
+        return NULL;
+    }
+
+    for(int i = 0; i<strlen(str); i++){
+        chstr[i] = (chtype)str[i] | COLOR_PAIR(color_index);
+    }
+
+    return chstr;
+}

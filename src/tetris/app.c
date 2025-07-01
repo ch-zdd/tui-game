@@ -1,6 +1,7 @@
 
 
 #include <memory.h>
+#include <pthread.h>
 
 #include "app.h"
 #include "app-context.h"
