@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <signal.h>
 
 #include "../../lib/tui.h"
 #include "../../lib/common.h"
@@ -81,7 +80,7 @@ pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 void new_food();
 void* handle_input(void* data);
 int move_snake_s();
-void run(void)
+void game_run(void)
 {
     srand(time(NULL));
     // 初始化窗口

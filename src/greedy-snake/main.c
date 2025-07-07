@@ -11,6 +11,13 @@
 #include "../../lib/tui.h"
 #include "../../lib/common.h"
 
+extern void game_run(void);
+extern void game_final(void);
+extern void game_run_2(void);
+extern void game_final_2(void);
+#define app_run() game_run_2()
+#define app_final() game_final_2()
+
 void tk_signal_handle(int signo)
 {
     switch(signo){
@@ -51,7 +58,7 @@ void init(void)
 extern void game_final(void);
 void final(void)
 {
-    game_final();
+    app_final();
     tui_final();
     log_final();
 }
@@ -63,7 +70,7 @@ int main(int argc, char **argv)
 
     atexit(final);
 
-    run();
+    app_run();
 
     return 0;
 }
